@@ -11,8 +11,23 @@ create extension if not exists "pgcrypto";
 create table families (
   id uuid primary key default gen_random_uuid(),
   name text not null,
+  invite_code text unique not null default upper(substr(md5(random()::text), 1, 6)),
   created_at timestamptz not null default now()
 );
+
+-- looks up a family by its short invite code without exposing the rest of
+-- the families table to unauthenticated/unrelated users via RLS
+create or replace function find_family_by_invite_code(code text)
+returns table (id uuid, name text)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select id, name from families where invite_code = upper(code);
+$$;
+
+grant execute on function find_family_by_invite_code(text) to authenticated;
 
 create table profiles (
   id uuid primary key references auth.users (id) on delete cascade,
@@ -133,6 +148,15 @@ create policy "profiles readable by family members" on profiles
 
 create policy "profile self update" on profiles
   for update using (id = auth.uid());
+
+create policy "profiles insert self" on profiles
+  for insert with check (id = auth.uid());
+
+create policy "family create" on families
+  for insert with check (auth.uid() is not null);
+
+create policy "family_members insert self" on family_members
+  for insert with check (user_id = auth.uid());
 
 create policy "family members readable within family" on family_members
   for select using (is_family_member(user_id, auth.uid()));

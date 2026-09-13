@@ -10,6 +10,13 @@ export default async function FamilyPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const { data: membership } = await supabase
+    .from("family_members")
+    .select("families(name, invite_code)")
+    .eq("user_id", user!.id)
+    .maybeSingle();
+  const family = membership?.families as unknown as { name: string; invite_code: string } | null;
+
   const { data: entries } = await supabase
     .from("diary_entries")
     .select("id, category, content, entry_date, user_id, profiles(name), reactions(id, emoji, user_id)")
@@ -20,7 +27,14 @@ export default async function FamilyPage() {
 
   return (
     <div className="flex flex-col gap-4 pt-2">
-      <h1 className="text-lg font-semibold">가족 피드</h1>
+      <div>
+        <h1 className="text-lg font-semibold">{family?.name ?? "가족"} 피드</h1>
+        {family && (
+          <p className="mt-1 text-xs text-neutral-400">
+            초대 코드: <span className="font-mono tracking-widest text-neutral-600">{family.invite_code}</span> — 다른 가족에게 알려주세요
+          </p>
+        )}
+      </div>
 
       {!entries?.length ? (
         <p className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-center text-sm text-neutral-400">

@@ -11,6 +11,69 @@ export async function signOut() {
   redirect("/login");
 }
 
+export async function createProfile(name: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  await supabase.from("profiles").insert({ id: user.id, name: name.trim() || "가족" });
+}
+
+export async function createFamily(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const name = String(formData.get("family_name") ?? "").trim();
+  const role = formData.get("role") === "child" ? "child" : "parent";
+  if (!name) throw new Error("가족 이름을 입력해주세요.");
+
+  const { data: family, error } = await supabase
+    .from("families")
+    .insert({ name })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+
+  const { error: memberError } = await supabase
+    .from("family_members")
+    .insert({ family_id: family.id, user_id: user.id, role });
+  if (memberError) throw new Error(memberError.message);
+
+  redirect("/");
+}
+
+export async function joinFamily(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const code = String(formData.get("invite_code") ?? "").trim();
+  const role = formData.get("role") === "child" ? "child" : "parent";
+  if (!code) throw new Error("초대 코드를 입력해주세요.");
+
+  const { data: matches, error: lookupError } = await supabase.rpc("find_family_by_invite_code", {
+    code,
+  });
+  if (lookupError) throw new Error(lookupError.message);
+
+  const family = matches?.[0];
+  if (!family) throw new Error("초대 코드를 찾을 수 없어요.");
+
+  const { error: memberError } = await supabase
+    .from("family_members")
+    .insert({ family_id: family.id, user_id: user.id, role });
+  if (memberError) throw new Error(memberError.message);
+
+  redirect("/");
+}
+
 export async function createEntry(formData: FormData) {
   const supabase = await createClient();
   const {
