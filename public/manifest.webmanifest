@@ -1,0 +1,16 @@
+{
+  "name": "하루별 - 가족 성장 다이어리",
+  "short_name": "하루별",
+  "description": "아이 스스로 하루의 의미 있는 순간을 발견하고 가족과 나누는 성장 다이어리",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fffaf3",
+  "theme_color": "#fbbf6d",
+  "lang": "ko",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
