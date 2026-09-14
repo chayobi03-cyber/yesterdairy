@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 
 // End-to-end smoke test for the whole family-diary flow, run against a real
 // Supabase project (see playwright.config.ts / CI workflow for how the app
@@ -14,9 +14,27 @@ const password2 = "TestPass123!";
 
 test.describe.configure({ mode: "serial" });
 
+// Wraps test.step with a mandatory assertion of where the page ends up.
+// This exists because of a real bug this suite shipped once already: a step
+// navigated into /calendar/[date] and never came back, so the *next* step
+// failed with a confusing "element not found" timeout instead of pointing
+// at its actual cause (being on the wrong page). Every step in this test
+// must declare its expected end URL, so a step that silently leaves the
+// page somewhere unexpected fails immediately, at the point of the mistake.
+function makeStep(page: Page) {
+  return async (name: string, expectUrl: RegExp, run: () => Promise<void>) => {
+    await test.step(name, async () => {
+      await run();
+      await expect(page).toHaveURL(expectUrl);
+    });
+  };
+}
+
 test("sign up -> create family -> write entry -> family feed -> settings -> re-login", async ({ page, browser }) => {
+  const step = makeStep(page);
   let inviteCode = "";
-  await test.step("sign up", async () => {
+
+  await step("sign up", /\/onboarding$/, async () => {
     await page.goto("/signup");
     await page.getByPlaceholder("아이디 (로그인용)").fill(username);
     await page.getByPlaceholder(/비밀번호 \(6자 이상\)/).fill(password);
@@ -24,16 +42,15 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     await page.waitForURL("**/onboarding");
   });
 
-  await test.step("create family (regression: redirect-in-wrapped-action bug)", async () => {
+  await step("create family (regression: redirect-in-wrapped-action bug)", /\/$/, async () => {
     await page.getByRole("button", { name: "새 가족 만들기" }).click();
     await page.getByPlaceholder("가족 이름 (예: 우리 가족)").fill(familyName);
     await page.getByRole("button", { name: "가족 만들기" }).click();
     // The bug this test guards against: onboarding never left this page.
     await page.waitForURL((url) => !url.pathname.includes("/onboarding"), { timeout: 10_000 });
-    await expect(page).toHaveURL("/");
   });
 
-  await test.step("bottom nav stays at the simplified 5 tabs", async () => {
+  await step("bottom nav stays at the simplified 5 tabs", /\/$/, async () => {
     const nav = page.locator("nav");
     await expect(nav.getByRole("link", { name: "오늘" })).toBeVisible();
     await expect(nav.getByRole("link", { name: "달력" })).toBeVisible();
@@ -45,7 +62,7 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     await expect(nav.getByRole("link")).toHaveCount(5);
   });
 
-  await test.step("write a family-visible entry", async () => {
+  await step("write a family-visible entry", /\/$/, async () => {
     await page.getByRole("link", { name: /오늘의 순간 기록하기/ }).click();
     await page.waitForURL("**/write");
     await page.locator('textarea[name="content"]').fill(`자동화 테스트 기록 ${runId}`);
@@ -55,7 +72,7 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     await expect(page.getByText(`자동화 테스트 기록 ${runId}`)).toBeVisible();
   });
 
-  await test.step("edit today's entry, adding a photo", async () => {
+  await step("edit today's entry, adding a photo", /\/$/, async () => {
     await page.getByRole("link", { name: "수정" }).click();
     await page.waitForURL(/\/write\//);
     await page.locator('textarea[name="content"]').fill(`수정된 테스트 기록 ${runId}`);
@@ -66,19 +83,19 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     await expect(page.getByText(`자동화 테스트 기록 ${runId}`)).not.toBeVisible();
   });
 
-  await test.step("challenge mode shows a hatching pet after today's first entry", async () => {
+  await step("challenge mode shows a hatching pet after today's first entry", /\/challenge$/, async () => {
     await page.goto("/");
     await page.getByRole("link", { name: "🐣 도전 모드" }).click();
     await page.waitForURL("**/challenge");
     await expect(page.getByText("부화 중 · 연속 1일")).toBeVisible();
   });
 
-  await test.step("uploaded photo shows up in the album", async () => {
+  await step("uploaded photo shows up in the album", /\/album$/, async () => {
     await page.goto("/album");
     await expect(page.locator("img")).toHaveCount(1);
   });
 
-  await test.step("private entry is written but stays hidden from family (checked later)", async () => {
+  await step("private entry is written but stays hidden from family (checked later)", /\/$/, async () => {
     await page.goto("/write");
     await page.locator('textarea[name="content"]').fill(`비공개 테스트 기록 ${runId}`);
     // visibility toggle defaults to "나만 보기" (private) -- deliberately not
@@ -88,12 +105,12 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     await expect(page.getByText(`비공개 테스트 기록 ${runId}`)).toBeVisible();
   });
 
-  await test.step("entry shows up on the calendar", async () => {
+  await step("entry shows up on the calendar", /\/calendar$/, async () => {
     await page.goto("/calendar");
     await expect(page.locator("h1")).toContainText(/\d{4}년 \d{1,2}월/);
   });
 
-  await test.step("clicking today on the calendar opens the day's entries", async () => {
+  await step("clicking today on the calendar opens the day's entries", /\/calendar$/, async () => {
     const todayISO = new Date().toLocaleDateString("sv-SE");
     await page.locator(`a[href="/calendar/${todayISO}"]`).click();
     await page.waitForURL(`**/calendar/${todayISO}`);
@@ -103,14 +120,14 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     await page.goto("/calendar");
   });
 
-  await test.step("add a calendar event", async () => {
+  await step("add a calendar event", /\/calendar$/, async () => {
     await page.getByRole("button", { name: "+ 일정 추가" }).click();
     await page.getByPlaceholder(/미용실, 밥약속/).fill(`E2E 일정 ${runId}`);
     await page.getByRole("button", { name: "추가" }).click();
     await expect(page.getByText(`E2E 일정 ${runId}`)).toBeVisible();
   });
 
-  await test.step("add a family-visible goal", async () => {
+  await step("add a family-visible goal", /\/family$/, async () => {
     await page.goto("/family");
     await page.getByRole("button", { name: "+ 목표 추가" }).click();
     await page.getByPlaceholder(/줄넘기 1급/).fill(`E2E 목표 ${runId}`);
@@ -119,7 +136,7 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     await expect(page.getByText(`E2E 목표 ${runId}`)).toBeVisible();
   });
 
-  await test.step("entry + reaction show up on the family feed", async () => {
+  await step("entry + reaction show up on the family feed", /\/family$/, async () => {
     await page.goto("/family");
     await expect(page.getByText(`수정된 테스트 기록 ${runId}`)).toBeVisible();
     await page.getByRole("button", { name: /^🔥/ }).click();
@@ -131,7 +148,7 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     inviteCode = match[1];
   });
 
-  await test.step("add and delete a comment on the family feed", async () => {
+  await step("add and delete a comment on the family feed", /\/family$/, async () => {
     await page.getByPlaceholder("댓글 달기...").fill(`E2E 댓글 ${runId}`);
     await page.getByRole("button", { name: "등록" }).click();
     await expect(page.getByText(`E2E 댓글 ${runId}`)).toBeVisible();
@@ -196,7 +213,7 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     }
   });
 
-  await test.step("pick a growth world and view my own room", async () => {
+  await step("pick a growth world and view my own room", /\/room\//, async () => {
     await page.goto("/settings");
     await page.getByRole("button", { name: "별자리" }).click();
     // wait for the update-world server action to finish (button re-enables)
@@ -209,7 +226,7 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     await expect(page.getByText("별자리 세계관")).toBeVisible();
   });
 
-  await test.step("switch to the color-collection world and see the color codex", async () => {
+  await step("switch to the color-collection world and see the color codex", /\/room\//, async () => {
     await page.goto("/settings");
     await page.getByRole("button", { name: "색모음집" }).click();
     await expect(page.getByRole("button", { name: "색모음집" })).toBeEnabled({ timeout: 20_000 });
@@ -221,7 +238,7 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     await expect(page.getByText(/🎨 색 도감/)).toBeVisible();
   });
 
-  await test.step("change nickname in settings without breaking login id", async () => {
+  await step("change nickname in settings without breaking login id", /\/settings$/, async () => {
     await page.goto("/settings");
     const nicknameInput = page.locator('input[name="name"]');
     await nicknameInput.fill(`새닉네임_${runId}`);
@@ -229,7 +246,7 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     await expect(page.getByText("닉네임이 바뀌었어요.")).toBeVisible();
   });
 
-  await test.step("sign out and log back in with the original username", async () => {
+  await step("sign out and log back in with the original username", /\/$/, async () => {
     await page.getByRole("button", { name: "로그아웃" }).click();
     await page.waitForURL("**/login");
     await page.getByPlaceholder("아이디").fill(username);
@@ -237,6 +254,5 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     await page.getByRole("button", { name: "로그인" }).click();
     // Should land on Home directly, not get bounced to onboarding again.
     await page.waitForURL("/");
-    await expect(page).toHaveURL("/");
   });
 });
