@@ -5,8 +5,6 @@
 // deterministic hash of the item's own id, so a specific achievement always
 // looks like the same creature.
 
-export const TREE_CREATURES = ["/creatures/fox.png", "/creatures/owl.png", "/creatures/rabbit.png", "/creatures/frog.png"];
-
 export const CONSTELLATION_CREATURES = ["/creatures/bunny.png", "/creatures/bear.png"];
 
 export const PLANET_CREATURES = ["/creatures/bunny.png", "/creatures/bear.png", "/creatures/sun.png"];

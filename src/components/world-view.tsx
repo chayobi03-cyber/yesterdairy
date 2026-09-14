@@ -1,4 +1,4 @@
-import { TREE_CREATURES, CONSTELLATION_CREATURES, PLANET_CREATURES, pickCreature } from "@/lib/creatures";
+import { CONSTELLATION_CREATURES, PLANET_CREATURES, pickCreature } from "@/lib/creatures";
 
 // Each world is a small "collection" scene: unlocked items show up as real
 // illustrated creatures (see lib/creatures.ts) scattered across a themed
@@ -187,33 +187,31 @@ function TreeStage({ itemIds }: { itemIds: string[] }) {
     );
   }
 
+  // A real illustration (licensed, background-removed) instead of scattered
+  // shapes -- revealed progressively through a growing circular clip
+  // centered on the canopy, so the same static image doubles as a growth
+  // meter instead of needing per-leaf assets. t=0 (7 items) still shows a
+  // small sprouted patch; t=1 (40+ items) shows the whole tree.
   const t = clamp((itemCount - 7) / 33, 0, 1);
-  const canopyW = lerp(35, 53, t);
-  const canopyH = lerp(40, 63, t);
-  const canopyCy = lerp(47, 40, t);
-  const trunkTop = canopyCy + canopyH / 2 - 4;
-  const pts = phyllotaxis(Math.min(itemCount, 40), (canopyW / 2) * 0.72, (canopyH / 2) * 0.68, 50, canopyCy);
-  // The canopy starts small, so cramming up to CREATURE_CAP full-size
-  // creatures into it early on just overlaps -- ramp the visible count with
-  // the same growth progress t instead of jumping straight to the cap.
-  const visibleCreatures = Math.round(lerp(3, CREATURE_CAP, t));
+  const revealRadius = lerp(16, 62, Math.sqrt(t));
 
   return (
     <>
       {ground}
-      {trunk({ leftPct: 49, topPct: trunkTop, widthPct: lerp(2.8, 4, t), heightPct: 90 - trunkTop })}
-      <div
-        className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
-        style={{ left: "50%", top: `${canopyCy}%`, width: `${canopyW}%`, height: `${canopyH}%`, background: "radial-gradient(ellipse at 35% 30%, #bfe6c8, #8fcf9e)" }}
+      {/* eslint-disable-next-line @next/next/no-img-element -- static public/ asset, clipped to a custom percentage-based reveal circle. */}
+      <img
+        src="/tree/rainbow-tree.webp"
+        alt=""
+        className="absolute h-auto object-contain"
+        style={{
+          left: "50%",
+          bottom: "2%",
+          width: "78%",
+          transform: "translateX(-50%)",
+          clipPath: `circle(${revealRadius}% at 50% 32%)`,
+        }}
       />
-      {pts.map((p, i) =>
-        i < visibleCreatures ? (
-          <Creature key={i} src={pickCreature(TREE_CREATURES, itemIds[i])} x={p.x} y={p.y} size={11} />
-        ) : (
-          <Dot key={i} x={p.x} y={p.y} />
-        ),
-      )}
-      <Caption count={itemCount} label="마리가 놀러왔어요" />
+      <Caption count={itemCount} label="개의 잎을 모았어요" />
     </>
   );
 }
