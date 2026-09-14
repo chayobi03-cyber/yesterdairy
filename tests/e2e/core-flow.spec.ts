@@ -55,7 +55,7 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     await page.goto("/settings");
     const nicknameInput = page.locator('input[name="name"]');
     await nicknameInput.fill(`새닉네임_${runId}`);
-    await page.getByRole("button", { name: "저장" }).click();
+    await page.getByRole("button", { name: "저장", exact: true }).click();
     await expect(page.getByText("닉네임이 바뀌었어요.")).toBeVisible();
   });
 
