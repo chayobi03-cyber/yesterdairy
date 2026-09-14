@@ -11,18 +11,23 @@
    ```bash
    npm run dev
    ```
-4. 가족 중 한 명이 `/signup`에서 **이름 + 비밀번호**로 가입 후 "새 가족 만들기"로
-   가족을 만들면 6자리 초대 코드가 발급됩니다(가족 피드 화면 상단에 표시).
-   나머지 가족은 `/signup` → "초대 코드로 참여하기"로 그 코드를 입력해 합류합니다.
-   가입은 열려 있지만, 초대 코드를 모르면 남의 가족 기록에 접근할 수 없습니다
-   (RLS로 private-first가 강제됨).
+4. 가족 중 한 명이 `/signup`에서 **아이디 + 닉네임 + 비밀번호**로 가입 후
+   "새 가족 만들기"로 가족을 만들면 6자리 초대 코드가 발급됩니다(가족 피드
+   화면 상단에 표시). 나머지 가족은 `/signup` → "초대 코드로 참여하기"로 그
+   코드를 입력해 합류합니다. 가입은 열려 있지만, 초대 코드를 모르면 남의
+   가족 기록에 접근할 수 없습니다 (RLS로 private-first가 강제됨).
 
 이메일 주소는 전혀 쓰지 않습니다 — 가입 시 내부적으로 무작위 placeholder
 이메일을 만들어 Supabase Auth에 등록하고, `login_identities` 테이블이
-"이름 → 그 placeholder 이메일"을 매핑해 로그인 화면에서 이름만으로 로그인할
-수 있게 해줍니다 (`supabase/migrations/0002_name_based_auth.sql`). 이메일
-확인(confirm email) 절차는 DB 트리거로 즉시 처리되므로 Supabase 대시보드의
-이메일 인증 설정과 무관하게 항상 동작합니다.
+"아이디 → 그 placeholder 이메일"을 매핑해 로그인 화면에서 아이디+비밀번호로
+로그인할 수 있게 해줍니다 (`supabase/migrations/0002_name_based_auth.sql`,
+`0004_separate_username_nickname.sql`). 이메일 확인(confirm email) 절차는
+DB 트리거로 즉시 처리되므로 Supabase 대시보드의 이메일 인증 설정과 무관하게
+항상 동작합니다.
+
+아이디(로그인용, `login_identities.username`)와 닉네임(가족 피드 등에
+보이는 이름, `profiles.name`)은 별개입니다 — 설정 탭에서 닉네임을 바꿔도
+로그인 아이디는 그대로예요.
 
 ## 구조
 

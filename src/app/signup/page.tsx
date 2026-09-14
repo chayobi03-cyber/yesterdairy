@@ -11,7 +11,8 @@ function placeholderEmail() {
 
 export default function SignupPage() {
   const router = useRouter();
-  const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
+  const [nickname, setNickname] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -23,19 +24,20 @@ export default function SignupPage() {
 
     const supabase = createClient();
     const email = placeholderEmail();
-    const trimmedName = name.trim();
+    const trimmedUsername = username.trim();
+    const trimmedNickname = nickname.trim() || trimmedUsername;
 
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { name: trimmedName } },
+      options: { data: { username: trimmedUsername, name: trimmedNickname } },
     });
 
     if (signUpError) {
       setLoading(false);
       setError(
         signUpError.message.includes("duplicate") || signUpError.status === 500
-          ? "이 이름은 이미 사용 중이에요. 다른 이름을 써볼래요?"
+          ? "이 아이디는 이미 사용 중이에요. 다른 아이디를 써볼래요?"
           : "가입에 실패했어요.",
       );
       return;
@@ -71,9 +73,16 @@ export default function SignupPage() {
         <input
           type="text"
           required
-          placeholder="이름"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
+          placeholder="아이디 (로그인용)"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          className="rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none focus:border-amber-300"
+        />
+        <input
+          type="text"
+          placeholder="닉네임 (가족에게 보이는 이름, 비워두면 아이디와 동일)"
+          value={nickname}
+          onChange={(e) => setNickname(e.target.value)}
           className="rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none focus:border-amber-300"
         />
         <input

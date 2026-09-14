@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -21,12 +21,12 @@ export default function LoginPage() {
     const { data: identity } = await supabase
       .from("login_identities")
       .select("email")
-      .eq("display_name", name.trim())
+      .eq("username", username.trim())
       .maybeSingle();
 
     if (!identity) {
       setLoading(false);
-      setError("그런 이름의 계정을 찾을 수 없어요.");
+      setError("그런 아이디의 계정을 찾을 수 없어요.");
       return;
     }
 
@@ -37,7 +37,7 @@ export default function LoginPage() {
 
     setLoading(false);
     if (signInError) {
-      setError("이름 또는 비밀번호를 확인해주세요.");
+      setError("아이디 또는 비밀번호를 확인해주세요.");
       return;
     }
     router.replace("/");
@@ -56,9 +56,9 @@ export default function LoginPage() {
         <input
           type="text"
           required
-          placeholder="이름"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
+          placeholder="아이디"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
           className="rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none focus:border-amber-300"
         />
         <input

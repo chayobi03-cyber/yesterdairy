@@ -19,12 +19,10 @@ export async function updateName(formData: FormData) {
   if (!user) redirect("/login");
 
   const name = String(formData.get("name") ?? "").trim();
-  if (!name) throw new Error("이름을 입력해주세요.");
+  if (!name) throw new Error("닉네임을 입력해주세요.");
 
   const { error } = await supabase.from("profiles").update({ name }).eq("id", user.id);
-  if (error) {
-    throw new Error(error.message.includes("duplicate") ? "이미 사용 중인 이름이에요." : error.message);
-  }
+  if (error) throw new Error(error.message);
 
   revalidatePath("/settings");
   revalidatePath("/family");

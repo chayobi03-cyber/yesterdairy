@@ -49,7 +49,8 @@ export function SettingsForm({ currentName }: { currentName: string }) {
   return (
     <div className="flex flex-col gap-6">
       <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium text-neutral-500">이름 변경</h2>
+        <h2 className="text-sm font-medium text-neutral-500">닉네임 변경</h2>
+        <p className="text-xs text-neutral-400">가족 피드 등에 보이는 이름이에요. 로그인 아이디와는 별개라 자유롭게 바꿔도 돼요.</p>
         <form action={handleNameSubmit} className="flex gap-2">
           <input
             name="name"
@@ -66,7 +67,7 @@ export function SettingsForm({ currentName }: { currentName: string }) {
           </button>
         </form>
         {nameError && <p className="text-sm text-rose-500">{nameError}</p>}
-        {nameSaved && <p className="text-sm text-emerald-600">이름이 바뀌었어요. 다음 로그인부터 새 이름을 쓰세요.</p>}
+        {nameSaved && <p className="text-sm text-emerald-600">닉네임이 바뀌었어요.</p>}
       </section>
 
       <section className="flex flex-col gap-2">
