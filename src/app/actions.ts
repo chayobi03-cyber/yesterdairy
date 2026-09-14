@@ -28,6 +28,24 @@ export async function updateName(formData: FormData) {
   revalidatePath("/family");
 }
 
+export async function updateWorldType(worldType: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  if (!["tree", "constellation", "planet"].includes(worldType)) {
+    throw new Error("알 수 없는 세계관이에요.");
+  }
+
+  const { error } = await supabase.from("profiles").update({ world_type: worldType }).eq("id", user.id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/settings");
+  revalidatePath(`/room/${user.id}`);
+}
+
 export async function createFamily(formData: FormData) {
   const supabase = await createClient();
   const {

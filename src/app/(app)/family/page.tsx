@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { categoryMeta } from "@/lib/categories";
 import { toggleReaction, toggleGoalAchieved, toggleCheer } from "@/app/actions";
@@ -29,7 +30,10 @@ export default async function FamilyPage() {
   const family = membership?.families as unknown as { name: string; invite_code: string } | null;
 
   const { data: members } = membership
-    ? await supabase.from("family_members").select("role, profiles(name)").eq("family_id", membership.family_id)
+    ? await supabase
+        .from("family_members")
+        .select("user_id, role, profiles(name)")
+        .eq("family_id", membership.family_id)
     : { data: null };
 
   const { data: entries } = await supabase
@@ -68,12 +72,16 @@ export default async function FamilyPage() {
 
       {!!members?.length && (
         <div className="flex flex-wrap gap-2">
-          {members.map((m, i) => {
+          {members.map((m) => {
             const name = (m.profiles as unknown as { name: string } | null)?.name ?? "?";
             return (
-              <span key={i} className="rounded-full bg-neutral-100 px-3 py-1 text-xs text-neutral-600">
+              <Link
+                key={m.user_id}
+                href={`/room/${m.user_id}`}
+                className="rounded-full bg-neutral-100 px-3 py-1 text-xs text-neutral-600"
+              >
                 {name} · {m.role === "parent" ? "부모" : "아이"}
-              </span>
+              </Link>
             );
           })}
         </div>

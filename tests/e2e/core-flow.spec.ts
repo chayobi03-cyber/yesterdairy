@@ -110,9 +110,28 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
       await expect(page2.getByText(`E2E 목표 ${runId}`)).toBeVisible();
       await page2.getByRole("button", { name: /^👏/ }).click();
       await expect(page2.getByRole("button", { name: /^👏 1/ })).toBeVisible();
+
+      // visiting the first member's room shows their shared goal too
+      await page2.getByRole("link", { name: `${username} · 부모` }).click();
+      await page2.waitForURL(/\/room\//);
+      await expect(page2.locator("h1")).toContainText("님의 공간");
+      await expect(page2.getByText(`E2E 목표 ${runId}`)).toBeVisible();
     } finally {
       await context2.close();
     }
+  });
+
+  await test.step("pick a growth world and view my own room", async () => {
+    await page.goto("/settings");
+    await page.getByRole("button", { name: "별자리" }).click();
+    // wait for the update-world server action to finish (button re-enables)
+    await expect(page.getByRole("button", { name: "별자리" })).toBeEnabled();
+
+    await page.goto("/");
+    await page.getByRole("link", { name: "내 공간 보러가기" }).click();
+    await page.waitForURL(/\/room\//);
+    await expect(page.locator("h1")).toContainText("님의 공간");
+    await expect(page.getByText("별자리 세계관")).toBeVisible();
   });
 
   await test.step("change nickname in settings without breaking login id", async () => {

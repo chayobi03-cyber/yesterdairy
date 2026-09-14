@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { categoryMeta } from "@/lib/categories";
-import { ITEMS, type ItemStats } from "@/lib/items";
+import { ITEMS } from "@/lib/items";
+import { getItemStats } from "@/lib/get-item-stats";
 
 function todayISO() {
   return new Date().toLocaleDateString("sv-SE"); // yyyy-mm-dd, local time
@@ -28,33 +29,7 @@ export default async function HomePage() {
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
-  const { data: allEntries } = await supabase
-    .from("diary_entries")
-    .select("category, entry_date")
-    .eq("user_id", user!.id)
-    .is("deleted_at", null);
-
-  const categoryCounts: Record<string, number> = {};
-  const entryDays = new Set<string>();
-  for (const e of allEntries ?? []) {
-    categoryCounts[e.category] = (categoryCounts[e.category] ?? 0) + 1;
-    entryDays.add(e.entry_date);
-  }
-
-  const { data: myGoals } = await supabase.from("goals").select("id, achieved_at").eq("user_id", user!.id);
-  const achievedGoals = (myGoals ?? []).filter((g) => g.achieved_at).length;
-  const myGoalIds = (myGoals ?? []).map((g) => g.id);
-
-  let cheersReceived = 0;
-  if (myGoalIds.length) {
-    const { count } = await supabase
-      .from("goal_cheers")
-      .select("id", { count: "exact", head: true })
-      .in("goal_id", myGoalIds);
-    cheersReceived = count ?? 0;
-  }
-
-  const stats: ItemStats = { categoryCounts, achievedGoals, cheersReceived, entryDays: entryDays.size };
+  const stats = await getItemStats(supabase, user!.id);
   const unlockedItems = ITEMS.filter((item) => item.isUnlocked(stats));
 
   return (
@@ -105,7 +80,12 @@ export default async function HomePage() {
       </section>
 
       <section>
-        <h2 className="mb-2 text-sm font-medium text-neutral-500">🎁 모은 아이템</h2>
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-sm font-medium text-neutral-500">🎁 모은 아이템</h2>
+          <Link href={`/room/${user!.id}`} className="text-xs text-accent-600 underline">
+            내 공간 보러가기
+          </Link>
+        </div>
         {!unlockedItems.length ? (
           <p className="rounded-2xl border border-dashed border-line px-4 py-6 text-center text-sm text-neutral-400">
             아직 모은 아이템이 없어요. 기록하고 목표를 응원받으면 하나씩 늘어나요.
