@@ -100,6 +100,7 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     await expect(page.getByText(`수정된 테스트 기록 ${runId}`)).toBeVisible();
     await expect(page.getByText(`비공개 테스트 기록 ${runId}`)).toBeVisible();
     await expect(page.getByRole("link", { name: "이 날짜에 기록하기" })).toBeVisible();
+    await page.goto("/calendar");
   });
 
   await test.step("add a calendar event", async () => {
