@@ -39,17 +39,12 @@ export async function createFamily(formData: FormData) {
   const role = formData.get("role") === "child" ? "child" : "parent";
   if (!name) throw new Error("가족 이름을 입력해주세요.");
 
-  const { data: family, error } = await supabase
-    .from("families")
-    .insert({ name })
-    .select("id")
-    .single();
+  // Both inserts (families + family_members) happen inside a single
+  // SECURITY DEFINER function — see 0005_create_family_rpc.sql for why
+  // doing this as two separate client-side inserts hits an RLS chicken-
+  // and-egg problem on the RETURNING read-back.
+  const { error } = await supabase.rpc("create_family", { family_name: name, member_role: role });
   if (error) throw new Error(error.message);
-
-  const { error: memberError } = await supabase
-    .from("family_members")
-    .insert({ family_id: family.id, user_id: user.id, role });
-  if (memberError) throw new Error(memberError.message);
 }
 
 export async function joinFamily(formData: FormData) {
