@@ -86,9 +86,15 @@ export default async function HomePage() {
       <section>
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-sm font-medium text-neutral-500">🎁 모은 아이템</h2>
-          <Link href={`/room/${user.id}`} className="text-xs text-accent-600 underline">
-            내 공간 보러가기
-          </Link>
+          <div className="flex items-center gap-2 text-xs text-accent-600">
+            <Link href="/challenge" className="underline">
+              🐣 도전 모드
+            </Link>
+            <span className="text-accent-200">·</span>
+            <Link href={`/room/${user.id}`} className="underline">
+              내 공간 보러가기
+            </Link>
+          </div>
         </div>
         {!unlockedItems.length ? (
           <p className="rounded-2xl border border-dashed border-line px-4 py-6 text-center text-sm text-neutral-400">

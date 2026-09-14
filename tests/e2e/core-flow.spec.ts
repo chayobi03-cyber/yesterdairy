@@ -55,8 +55,15 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
   });
 
   await test.step("challenge mode shows a hatching pet after today's first entry", async () => {
-    await page.goto("/challenge");
+    await page.goto("/");
+    await page.getByRole("link", { name: "🐣 도전 모드" }).click();
+    await page.waitForURL("**/challenge");
     await expect(page.getByText("부화 중 · 연속 1일")).toBeVisible();
+  });
+
+  await test.step("uploaded photo shows up in the album", async () => {
+    await page.goto("/album");
+    await expect(page.locator("img")).toHaveCount(1);
   });
 
   await test.step("entry shows up on the calendar", async () => {
