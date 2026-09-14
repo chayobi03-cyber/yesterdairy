@@ -67,10 +67,13 @@ export default async function HomePage() {
                     <span>{meta.emoji}</span>
                     <span className="font-medium">{meta.label}</span>
                     {entry.visibility === "family" && (
-                      <span className="ml-auto rounded-full bg-accent-50 px-2 py-0.5 text-[11px] text-accent-600">
+                      <span className="rounded-full bg-accent-50 px-2 py-0.5 text-[11px] text-accent-600">
                         가족 공개
                       </span>
                     )}
+                    <Link href={`/write/${entry.id}`} className="ml-auto text-xs text-neutral-400 underline underline-offset-2">
+                      수정
+                    </Link>
                   </div>
                   <p className="mt-1 text-sm text-neutral-700">{entry.content}</p>
                 </li>

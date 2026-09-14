@@ -4,6 +4,16 @@ import { getCurrentUser } from "@/lib/supabase/get-current-user";
 import { categoryMeta } from "@/lib/categories";
 import { EventForm } from "./event-form";
 
+// Small deterministic per-person color for the tiny "who wrote this" dots --
+// same hash-based approach used elsewhere (creatures, colors), so a given
+// family member always gets the same dot color.
+const AUTHOR_DOT_COLORS = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899"];
+function authorColor(userId: string) {
+  let h = 0;
+  for (let i = 0; i < userId.length; i++) h = (h * 31 + userId.charCodeAt(i)) >>> 0;
+  return AUTHOR_DOT_COLORS[h % AUTHOR_DOT_COLORS.length];
+}
+
 export default async function CalendarPage({
   searchParams,
 }: {
@@ -24,10 +34,13 @@ export default async function CalendarPage({
   const supabase = await createClient();
 
   const [{ data: entries }, { data: events }] = await Promise.all([
+    // No .eq("user_id", ...) filter here -- RLS already scopes this to the
+    // caller's own rows (any visibility) plus other family members' rows
+    // that are visibility='family', so this naturally becomes "my personal
+    // calendar plus what family shared" without any extra logic.
     supabase
       .from("diary_entries")
-      .select("id, entry_date, category")
-      .eq("user_id", user.id)
+      .select("id, entry_date, category, user_id, profiles(name)")
       .is("deleted_at", null)
       .gte("entry_date", firstOfMonth.toLocaleDateString("sv-SE"))
       .lte("entry_date", lastOfMonth.toLocaleDateString("sv-SE")),
@@ -40,11 +53,14 @@ export default async function CalendarPage({
       .order("event_date", { ascending: true }),
   ]);
 
-  const byDate = new Map<string, { emoji: string }[]>();
+  const byDate = new Map<string, { emoji: string; userId: string }[]>();
+  const nameByUser = new Map<string, string>();
   for (const entry of entries ?? []) {
     const list = byDate.get(entry.entry_date) ?? [];
-    list.push({ emoji: categoryMeta(entry.category).emoji });
+    list.push({ emoji: categoryMeta(entry.category).emoji, userId: entry.user_id });
     byDate.set(entry.entry_date, list);
+    const name = (entry.profiles as unknown as { name: string } | null)?.name;
+    if (name) nameByUser.set(entry.user_id, name);
   }
 
   const eventsByDate = new Map<string, string[]>();
@@ -99,6 +115,18 @@ export default async function CalendarPage({
             >
               <span>{cell.date}</span>
               <span className="text-sm leading-none">{marks?.[0]?.emoji ?? ""}</span>
+              {!!marks?.length && (
+                <span className="mt-0.5 flex gap-[3px]">
+                  {[...new Set(marks.map((m) => m.userId))].slice(0, 4).map((userId) => (
+                    <span
+                      key={userId}
+                      title={nameByUser.get(userId)}
+                      className="h-1 w-1 rounded-full"
+                      style={{ background: authorColor(userId) }}
+                    />
+                  ))}
+                </span>
+              )}
               {hasEvent && <span className="absolute bottom-1 h-1 w-1 rounded-full bg-sky-400" />}
             </div>
           );

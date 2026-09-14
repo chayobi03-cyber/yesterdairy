@@ -146,6 +146,40 @@ export async function createEntry(formData: FormData) {
   redirect("/");
 }
 
+export async function updateEntry(entryId: string, formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const category = String(formData.get("category")) as CategoryValue;
+  const content = String(formData.get("content") ?? "").trim();
+  const visibility = formData.get("visibility") === "family" ? "family" : "private";
+
+  if (!content) {
+    throw new Error("내용을 입력해주세요.");
+  }
+
+  const { error } = await supabase
+    .from("diary_entries")
+    .update({ category, content, visibility })
+    .eq("id", entryId)
+    .eq("user_id", user.id);
+
+  if (error) throw new Error(error.message);
+
+  // media.visibility is a separate copy checked by its own RLS policy --
+  // keep it in sync or a photo could stay readable to family after the
+  // entry itself is switched back to private.
+  await supabase.from("media").update({ visibility }).eq("entry_id", entryId);
+
+  revalidatePath("/");
+  revalidatePath("/calendar");
+  revalidatePath("/family");
+  redirect("/");
+}
+
 export async function toggleReaction(entryId: string, emoji: string) {
   const supabase = await createClient();
   const {

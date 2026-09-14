@@ -43,6 +43,16 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     await expect(page.getByText(`자동화 테스트 기록 ${runId}`)).toBeVisible();
   });
 
+  await test.step("edit today's entry", async () => {
+    await page.getByRole("link", { name: "수정" }).click();
+    await page.waitForURL(/\/write\//);
+    await page.locator('textarea[name="content"]').fill(`수정된 테스트 기록 ${runId}`);
+    await page.getByRole("button", { name: "수정하기" }).click();
+    await page.waitForURL("/");
+    await expect(page.getByText(`수정된 테스트 기록 ${runId}`)).toBeVisible();
+    await expect(page.getByText(`자동화 테스트 기록 ${runId}`)).not.toBeVisible();
+  });
+
   await test.step("challenge mode shows a hatching pet after today's first entry", async () => {
     await page.goto("/challenge");
     await expect(page.getByText("부화 중 · 연속 1일")).toBeVisible();
@@ -71,7 +81,7 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
 
   await test.step("entry + reaction show up on the family feed", async () => {
     await page.goto("/family");
-    await expect(page.getByText(`자동화 테스트 기록 ${runId}`)).toBeVisible();
+    await expect(page.getByText(`수정된 테스트 기록 ${runId}`)).toBeVisible();
     await page.getByRole("button", { name: /^🔥/ }).click();
     await expect(page.getByRole("button", { name: /^🔥 1/ })).toBeVisible();
 
@@ -99,7 +109,7 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
 
       await page2.goto("/family");
       await expect(page2.getByText(familyName)).toBeVisible();
-      await expect(page2.getByText(`자동화 테스트 기록 ${runId}`)).toBeVisible();
+      await expect(page2.getByText(`수정된 테스트 기록 ${runId}`)).toBeVisible();
       // both members should be listed by nickname (role is "부모" for both
       // in this test; matching the full "name · role" text avoids username2
       // — which is literally "<username>_2" — accidentally substring-matching
