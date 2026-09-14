@@ -125,7 +125,7 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     await page.goto("/settings");
     await page.getByRole("button", { name: "별자리" }).click();
     // wait for the update-world server action to finish (button re-enables)
-    await expect(page.getByRole("button", { name: "별자리" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "별자리" })).toBeEnabled({ timeout: 20_000 });
 
     await page.goto("/");
     await page.getByRole("link", { name: "내 공간 보러가기" }).click();

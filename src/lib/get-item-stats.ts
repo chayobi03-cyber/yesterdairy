@@ -7,11 +7,12 @@ import type { ItemStats } from "@/lib/items";
 // only if they're visibility='family'. So a stranger's room (or a private
 // entry) never leaks through this.
 export async function getItemStats(supabase: SupabaseClient, targetUserId: string): Promise<ItemStats> {
-  const { data: entries } = await supabase
-    .from("diary_entries")
-    .select("category, entry_date")
-    .eq("user_id", targetUserId)
-    .is("deleted_at", null);
+  // entries and goals don't depend on each other — fire both at once
+  // instead of paying two sequential round trips.
+  const [{ data: entries }, { data: goals }] = await Promise.all([
+    supabase.from("diary_entries").select("category, entry_date").eq("user_id", targetUserId).is("deleted_at", null),
+    supabase.from("goals").select("id, achieved_at").eq("user_id", targetUserId),
+  ]);
 
   const categoryCounts: Record<string, number> = {};
   const entryDays = new Set<string>();
@@ -20,10 +21,10 @@ export async function getItemStats(supabase: SupabaseClient, targetUserId: strin
     entryDays.add(e.entry_date);
   }
 
-  const { data: goals } = await supabase.from("goals").select("id, achieved_at").eq("user_id", targetUserId);
   const achievedGoals = (goals ?? []).filter((g) => g.achieved_at).length;
   const goalIds = (goals ?? []).map((g) => g.id);
 
+  // cheers genuinely depends on goalIds, so this one has to wait its turn.
   let cheersReceived = 0;
   if (goalIds.length) {
     const { count } = await supabase

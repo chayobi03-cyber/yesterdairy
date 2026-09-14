@@ -14,19 +14,16 @@ export default async function RoomPage({ params }: { params: Promise<{ userId: s
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: profile } = await supabase.from("profiles").select("name, world_type").eq("id", userId).maybeSingle();
+  // Independent of each other, so don't pay three sequential round trips.
+  const [{ data: profile }, stats, { data: goals }] = await Promise.all([
+    supabase.from("profiles").select("name, world_type").eq("id", userId).maybeSingle(),
+    getItemStats(supabase, userId),
+    supabase.from("goals").select("id, title, achieved_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(10),
+  ]);
   if (!profile) notFound();
 
   const isMe = user!.id === userId;
-  const stats = await getItemStats(supabase, userId);
   const unlockedItems = ITEMS.filter((item) => item.isUnlocked(stats));
-
-  const { data: goals } = await supabase
-    .from("goals")
-    .select("id, title, achieved_at")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(10);
 
   return (
     <div className="flex flex-col gap-4 pt-2">

@@ -21,21 +21,22 @@ export default async function CalendarPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: entries } = await supabase
-    .from("diary_entries")
-    .select("id, entry_date, category")
-    .eq("user_id", user!.id)
-    .is("deleted_at", null)
-    .gte("entry_date", firstOfMonth.toLocaleDateString("sv-SE"))
-    .lte("entry_date", lastOfMonth.toLocaleDateString("sv-SE"));
-
-  const { data: events } = await supabase
-    .from("events")
-    .select("id, event_date, title")
-    .eq("user_id", user!.id)
-    .gte("event_date", firstOfMonth.toLocaleDateString("sv-SE"))
-    .lte("event_date", lastOfMonth.toLocaleDateString("sv-SE"))
-    .order("event_date", { ascending: true });
+  const [{ data: entries }, { data: events }] = await Promise.all([
+    supabase
+      .from("diary_entries")
+      .select("id, entry_date, category")
+      .eq("user_id", user!.id)
+      .is("deleted_at", null)
+      .gte("entry_date", firstOfMonth.toLocaleDateString("sv-SE"))
+      .lte("entry_date", lastOfMonth.toLocaleDateString("sv-SE")),
+    supabase
+      .from("events")
+      .select("id, event_date, title")
+      .eq("user_id", user!.id)
+      .gte("event_date", firstOfMonth.toLocaleDateString("sv-SE"))
+      .lte("event_date", lastOfMonth.toLocaleDateString("sv-SE"))
+      .order("event_date", { ascending: true }),
+  ]);
 
   const byDate = new Map<string, { emoji: string }[]>();
   for (const entry of entries ?? []) {

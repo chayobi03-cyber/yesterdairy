@@ -14,22 +14,22 @@ export default async function HomePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("name")
-    .eq("id", user!.id)
-    .single();
-
   const today = todayISO();
-  const { data: todayEntries } = await supabase
-    .from("diary_entries")
-    .select("id, category, content, visibility, created_at")
-    .eq("user_id", user!.id)
-    .eq("entry_date", today)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false });
 
-  const stats = await getItemStats(supabase, user!.id);
+  // None of these depend on each other — run them concurrently instead of
+  // paying for round trip after round trip.
+  const [{ data: profile }, { data: todayEntries }, stats] = await Promise.all([
+    supabase.from("profiles").select("name").eq("id", user!.id).single(),
+    supabase
+      .from("diary_entries")
+      .select("id, category, content, visibility, created_at")
+      .eq("user_id", user!.id)
+      .eq("entry_date", today)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false }),
+    getItemStats(supabase, user!.id),
+  ]);
+
   const unlockedItems = ITEMS.filter((item) => item.isUnlocked(stats));
 
   return (

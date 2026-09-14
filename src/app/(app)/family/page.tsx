@@ -22,11 +22,30 @@ export default async function FamilyPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: membership } = await supabase
-    .from("family_members")
-    .select("family_id, families(name, invite_code)")
-    .eq("user_id", user!.id)
-    .maybeSingle();
+  // membership, entries and goals are all independent of each other —
+  // only "members" needs membership.family_id, so that one waits its turn.
+  const [{ data: membership }, { data: entries }, { data: myGoals }, { data: familyGoals }] = await Promise.all([
+    supabase.from("family_members").select("family_id, families(name, invite_code)").eq("user_id", user!.id).maybeSingle(),
+    supabase
+      .from("diary_entries")
+      .select("id, category, content, entry_date, user_id, profiles(name), reactions(id, emoji, user_id)")
+      .eq("visibility", "family")
+      .is("deleted_at", null)
+      .order("entry_date", { ascending: false })
+      .limit(30),
+    supabase
+      .from("goals")
+      .select("id, title, target_date, achieved_at, user_id, profiles(name), goal_cheers(id, user_id)")
+      .eq("user_id", user!.id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("goals")
+      .select("id, title, target_date, achieved_at, user_id, profiles(name), goal_cheers(id, user_id)")
+      .eq("visibility", "family")
+      .neq("user_id", user!.id)
+      .order("created_at", { ascending: false }),
+  ]);
+
   const family = membership?.families as unknown as { name: string; invite_code: string } | null;
 
   const { data: members } = membership
@@ -35,27 +54,6 @@ export default async function FamilyPage() {
         .select("user_id, role, profiles(name)")
         .eq("family_id", membership.family_id)
     : { data: null };
-
-  const { data: entries } = await supabase
-    .from("diary_entries")
-    .select("id, category, content, entry_date, user_id, profiles(name), reactions(id, emoji, user_id)")
-    .eq("visibility", "family")
-    .is("deleted_at", null)
-    .order("entry_date", { ascending: false })
-    .limit(30);
-
-  const { data: myGoals } = await supabase
-    .from("goals")
-    .select("id, title, target_date, achieved_at, user_id, profiles(name), goal_cheers(id, user_id)")
-    .eq("user_id", user!.id)
-    .order("created_at", { ascending: false });
-
-  const { data: familyGoals } = await supabase
-    .from("goals")
-    .select("id, title, target_date, achieved_at, user_id, profiles(name), goal_cheers(id, user_id)")
-    .eq("visibility", "family")
-    .neq("user_id", user!.id)
-    .order("created_at", { ascending: false });
 
   const goals = [...(myGoals ?? []), ...(familyGoals ?? [])] as unknown as Goal[];
 
