@@ -7,9 +7,9 @@
 
 export const TREE_CREATURES = ["/creatures/fox.png", "/creatures/owl.png", "/creatures/rabbit.png", "/creatures/frog.png"];
 
-export const CONSTELLATION_CREATURES = ["/creatures/monster-blue.png", "/creatures/monster-purple.png", "/creatures/monster-teal.png"];
+export const CONSTELLATION_CREATURES = ["/creatures/bunny.png", "/creatures/bear.png"];
 
-export const PLANET_CREATURES = ["/creatures/monster-orange.png", "/creatures/monster-pink.png", "/creatures/monster-green.png"];
+export const PLANET_CREATURES = ["/creatures/bunny.png", "/creatures/bear.png", "/creatures/sun.png"];
 
 export function pickCreature(list: string[], id: string): string {
   let h = 0;
