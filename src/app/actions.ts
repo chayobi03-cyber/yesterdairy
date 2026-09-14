@@ -50,8 +50,6 @@ export async function createFamily(formData: FormData) {
     .from("family_members")
     .insert({ family_id: family.id, user_id: user.id, role });
   if (memberError) throw new Error(memberError.message);
-
-  redirect("/");
 }
 
 export async function joinFamily(formData: FormData) {
@@ -77,8 +75,6 @@ export async function joinFamily(formData: FormData) {
     .from("family_members")
     .insert({ family_id: family.id, user_id: user.id, role });
   if (memberError) throw new Error(memberError.message);
-
-  redirect("/");
 }
 
 export async function createEntry(formData: FormData) {

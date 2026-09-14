@@ -1,33 +1,27 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { createFamily, joinFamily, signOut } from "@/app/actions";
 
-// redirect() throws internally (digest starts with "NEXT_REDIRECT") to
-// signal navigation to the framework — let it propagate instead of
-// treating it as an application error, or the redirect never happens.
-function isRedirectError(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "digest" in error &&
-    typeof (error as { digest: unknown }).digest === "string" &&
-    (error as { digest: string }).digest.startsWith("NEXT_REDIRECT")
-  );
-}
-
 export function OnboardingClient() {
+  const router = useRouter();
   const [mode, setMode] = useState<"choose" | "create" | "join">("choose");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
+  // createFamily/joinFamily deliberately don't call redirect() themselves:
+  // this wrapper is a plain client function, not the action reference Next
+  // instruments for automatic redirect handling, so we navigate here once
+  // the server action has actually finished.
   async function run(action: (formData: FormData) => Promise<void>, formData: FormData) {
     setPending(true);
     setError(null);
     try {
       await action(formData);
+      router.replace("/");
+      router.refresh();
     } catch (e) {
-      if (isRedirectError(e)) throw e;
       setError(e instanceof Error ? e.message : "문제가 생겼어요. 다시 시도해주세요.");
     } finally {
       setPending(false);
