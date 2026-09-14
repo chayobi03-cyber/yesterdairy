@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 
 const ITEMS = [
   { href: "/", label: "오늘", icon: "🏠" },
-  { href: "/write", label: "기록", icon: "✏️" },
   { href: "/calendar", label: "달력", icon: "📅" },
   { href: "/family", label: "가족", icon: "💛" },
   { href: "/album", label: "앨범", icon: "📸" },
