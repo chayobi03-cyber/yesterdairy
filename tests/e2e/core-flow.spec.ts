@@ -9,9 +9,13 @@ const username = `e2e_${runId}`;
 const password = "TestPass123!";
 const familyName = `E2E 가족 ${runId}`;
 
+const username2 = `e2e_${runId}_2`;
+const password2 = "TestPass123!";
+
 test.describe.configure({ mode: "serial" });
 
-test("sign up -> create family -> write entry -> family feed -> settings -> re-login", async ({ page }) => {
+test("sign up -> create family -> write entry -> family feed -> settings -> re-login", async ({ page, browser }) => {
+  let inviteCode = "";
   await test.step("sign up", async () => {
     await page.goto("/signup");
     await page.getByPlaceholder("아이디 (로그인용)").fill(username);
@@ -49,6 +53,45 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     await expect(page.getByText(`자동화 테스트 기록 ${runId}`)).toBeVisible();
     await page.getByRole("button", { name: /^🔥/ }).click();
     await expect(page.getByRole("button", { name: /^🔥 1/ })).toBeVisible();
+
+    const codeText = await page.getByText(/초대 코드:/).innerText();
+    const match = codeText.match(/초대 코드:\s*([A-Z0-9]{6})/);
+    if (!match) throw new Error(`couldn't find invite code in "${codeText}"`);
+    inviteCode = match[1];
+  });
+
+  await test.step("second family member joins via invite code and sees the shared entry", async () => {
+    const context2 = await browser.newContext();
+    const page2 = await context2.newPage();
+    try {
+      await page2.goto("/signup");
+      await page2.getByPlaceholder("아이디 (로그인용)").fill(username2);
+      await page2.getByPlaceholder(/비밀번호 \(6자 이상\)/).fill(password2);
+      await page2.getByRole("button", { name: "가입하기" }).click();
+      await page2.waitForURL("**/onboarding");
+
+      await page2.getByRole("button", { name: "초대 코드로 참여하기" }).click();
+      await page2.getByPlaceholder("초대 코드 (6자리)").fill(inviteCode);
+      await page2.getByRole("button", { name: "참여하기" }).click();
+      await page2.waitForURL((url) => !url.pathname.includes("/onboarding"), { timeout: 10_000 });
+      await expect(page2).toHaveURL("/");
+
+      await page2.goto("/family");
+      await expect(page2.getByText(familyName)).toBeVisible();
+      await expect(page2.getByText(`자동화 테스트 기록 ${runId}`)).toBeVisible();
+      // both members should be listed by nickname (role is "부모" for both
+      // in this test; matching the full "name · role" text avoids username2
+      // — which is literally "<username>_2" — accidentally substring-matching
+      // username's badge too)
+      await expect(page2.getByText(`${username} · 부모`)).toBeVisible();
+      await expect(page2.getByText(`${username2} · 부모`)).toBeVisible();
+
+      // second member can react too, independently of the first member's reaction
+      await page2.getByRole("button", { name: /^🌱/ }).click();
+      await expect(page2.getByRole("button", { name: /^🌱 1/ })).toBeVisible();
+    } finally {
+      await context2.close();
+    }
   });
 
   await test.step("change nickname in settings without breaking login id", async () => {
