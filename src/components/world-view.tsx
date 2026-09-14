@@ -187,32 +187,48 @@ function TreeStage({ itemIds }: { itemIds: string[] }) {
     );
   }
 
-  // A real illustration (licensed, background-removed) instead of scattered
-  // shapes -- revealed progressively through a growing circular clip
-  // centered on the canopy, so the same static image doubles as a growth
-  // meter instead of needing per-leaf assets. t=0 (7 items) still shows a
-  // small sprouted patch; t=1 (40+ items) shows the whole tree.
+  // Keeps the same lightweight CSS style as the seed/sprout/sapling stages
+  // instead of switching to a photo or character images -- canopy keeps
+  // growing and fills with colorful leaves, one per item.
   const t = clamp((itemCount - 7) / 33, 0, 1);
-  const revealRadius = lerp(16, 62, Math.sqrt(t));
+  const canopyW = lerp(35, 53, t);
+  const canopyH = lerp(40, 63, t);
+  const canopyCy = lerp(47, 40, t);
+  const trunkTop = canopyCy + canopyH / 2 - 4;
+  const pts = phyllotaxis(Math.min(itemCount, 40), (canopyW / 2) * 0.72, (canopyH / 2) * 0.68, 50, canopyCy);
 
   return (
     <>
       {ground}
-      {/* eslint-disable-next-line @next/next/no-img-element -- static public/ asset, clipped to a custom percentage-based reveal circle. */}
-      <img
-        src="/tree/rainbow-tree.webp"
-        alt=""
-        className="absolute h-auto object-contain"
-        style={{
-          left: "50%",
-          bottom: "2%",
-          width: "78%",
-          transform: "translateX(-50%)",
-          clipPath: `circle(${revealRadius}% at 50% 32%)`,
-        }}
+      {trunk({ leftPct: 49, topPct: trunkTop, widthPct: lerp(2.8, 4, t), heightPct: 90 - trunkTop })}
+      <div
+        className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
+        style={{ left: "50%", top: `${canopyCy}%`, width: `${canopyW}%`, height: `${canopyH}%`, background: "radial-gradient(ellipse at 35% 30%, #bfe6c8, #8fcf9e)" }}
       />
+      {pts.map((p, i) => (
+        <Leaf key={i} x={p.x} y={p.y} id={itemIds[i]} size={9 + (i % 3) * 1.5} />
+      ))}
       <Caption count={itemCount} label="개의 잎을 모았어요" />
     </>
+  );
+}
+
+const LEAF_PALETTE = ["#8ecae6", "#95d5a1", "#ffd166", "#ff9a5a", "#ffb6c1", "#c3aed6", "#4a8c6f", "#e8594a", "#2a6f97", "#a8a8a8", "#e07a5f", "#6fc182"];
+
+function Leaf({ x, y, id, size }: { x: number; y: number; id: string; size: number }) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  const color = LEAF_PALETTE[h % LEAF_PALETTE.length];
+  const rotation = h % 360;
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="absolute"
+      style={{ left: `${x}%`, top: `${y}%`, width: `${size}%`, transform: `translate(-50%, -50%) rotate(${rotation}deg)` }}
+    >
+      <path d="M12 2 C4 6 4 16 12 22 C20 16 20 6 12 2 Z" fill={color} stroke="rgba(0,0,0,0.15)" strokeWidth={0.8} />
+      <path d="M12 4 V20" stroke="rgba(0,0,0,0.18)" strokeWidth={0.6} />
+    </svg>
   );
 }
 
