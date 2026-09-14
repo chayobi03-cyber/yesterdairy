@@ -11,6 +11,7 @@ Supabase 프로젝트에 대해 CI에서 도는 하나의 긴 플로우 테스�
 | 가족 생성 | 온보딩을 벗어나 홈으로 이동 (과거 리다이렉트 버그 회귀 방지) | "create family" |
 | 하단 탭바 구성 | 오늘/달력/가족/앨범/설정 5개만, "기록" 탭 없음 | "bottom nav stays at the simplified 5 tabs" |
 | 기록 작성 (가족 공개) | 홈 화면에 즉시 표시 | "write a family-visible entry" |
+| **카테고리별 오늘의 질문** | 카테고리를 바꾸면 그 카테고리에 맞는 질문(고정 목록에서 날짜+카테고리로 결정론적 선택)으로 바뀜 | "write a family-visible entry" 안의 프롬프트 전환 체크 |
 | 기록 수정 + 사진 추가 | 기존 사진에 사진이 추가되고(최대 5장), 내용이 갱신됨 | "edit today's entry, adding a photo" |
 | 도전 모드 (연속 기록) | 오늘 첫 기록 후 "부화 중 · 연속 1일" 표시 | "challenge mode shows a hatching pet..." |
 | 앨범 — 본인 사진 | 본인이 올린 사진이 보임 | "uploaded photo shows up in the album" |

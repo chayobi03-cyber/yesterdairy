@@ -26,6 +26,7 @@ export default async function WritePage({
   return (
     <EntryForm
       action={action}
+      promptDate={entryDate}
       title={isToday ? undefined : `${entryDate} 기록`}
       subtitle={isToday ? undefined : "지난 날짜의 기록도 남겨볼까요?"}
     />

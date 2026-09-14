@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CATEGORIES, type CategoryValue } from "@/lib/categories";
+import { todayPrompt } from "@/lib/prompts";
 
 export function EntryForm({
   action,
@@ -9,6 +10,8 @@ export function EntryForm({
   defaultContent = "",
   defaultVisibility = "private",
   showPhotos = true,
+  showPrompt = true,
+  promptDate,
   photoLabel = "사진 (최대 5장)",
   submitLabel = "기록하기",
   pendingLabel = "저장 중...",
@@ -20,15 +23,20 @@ export function EntryForm({
   defaultContent?: string;
   defaultVisibility?: "private" | "family";
   showPhotos?: boolean;
+  showPrompt?: boolean;
+  // ISO date the prompt should be keyed to (e.g. the entry's target date
+  // for the "write for a past date" flow). Defaults to today.
+  promptDate?: string;
   photoLabel?: string;
   submitLabel?: string;
   pendingLabel?: string;
   title?: string;
   subtitle?: string;
 }) {
-  const [category, setCategory] = useState<string>(defaultCategory);
+  const [category, setCategory] = useState<CategoryValue>(defaultCategory);
   const [visibility, setVisibility] = useState<"private" | "family">(defaultVisibility);
   const [pending, setPending] = useState(false);
+  const [today] = useState(() => new Date().toLocaleDateString("sv-SE"));
 
   return (
     <form
@@ -68,6 +76,12 @@ export function EntryForm({
           </label>
         ))}
       </div>
+
+      {showPrompt && (
+        <p className="rounded-2xl bg-accent-50 px-4 py-2.5 text-sm text-accent-700">
+          💭 {todayPrompt(category, promptDate ?? today)}
+        </p>
+      )}
 
       <textarea
         name="content"

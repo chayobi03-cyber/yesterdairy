@@ -65,6 +65,14 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
   await step("write a family-visible entry", /\/$/, async () => {
     await page.getByRole("link", { name: /오늘의 순간 기록하기/ }).click();
     await page.waitForURL("**/write");
+
+    // daily prompt is category-specific -- switching category should swap it.
+    const prompt = page.getByText("💭", { exact: false });
+    await expect(prompt).toBeVisible();
+    const promptBefore = await prompt.innerText();
+    await page.getByText("용기 냈어").click();
+    await expect(prompt).not.toHaveText(promptBefore);
+
     await page.locator('textarea[name="content"]').fill(`자동화 테스트 기록 ${runId}`);
     await page.locator('button[type="button"]').click(); // flip visibility to "family"
     await page.getByRole("button", { name: "기록하기" }).click();
