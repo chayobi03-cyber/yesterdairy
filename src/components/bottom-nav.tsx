@@ -8,6 +8,7 @@ const ITEMS = [
   { href: "/write", label: "기록", icon: "✏️" },
   { href: "/calendar", label: "달력", icon: "📅" },
   { href: "/family", label: "가족", icon: "💛" },
+  { href: "/challenge", label: "도전", icon: "🐣" },
   { href: "/settings", label: "설정", icon: "⚙️" },
 ] as const;
 
@@ -23,7 +24,7 @@ export function BottomNav() {
             <li key={item.href}>
               <Link
                 href={item.href}
-                className={`flex flex-col items-center gap-0.5 px-4 py-1 text-xs ${
+                className={`flex flex-col items-center gap-0.5 px-2.5 py-1 text-xs ${
                   active ? "text-accent-500" : "text-neutral-400"
                 }`}
               >

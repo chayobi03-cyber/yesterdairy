@@ -43,6 +43,11 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     await expect(page.getByText(`자동화 테스트 기록 ${runId}`)).toBeVisible();
   });
 
+  await test.step("challenge mode shows a hatching pet after today's first entry", async () => {
+    await page.goto("/challenge");
+    await expect(page.getByText("부화 중 · 연속 1일")).toBeVisible();
+  });
+
   await test.step("entry shows up on the calendar", async () => {
     await page.goto("/calendar");
     await expect(page.locator("h1")).toContainText(/\d{4}년 \d{1,2}월/);
