@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/get-current-user";
@@ -107,10 +108,11 @@ export default async function CalendarPage({
           const hasEvent = cell.iso ? eventsByDate.has(cell.iso) : false;
           const isToday = cell.iso === new Date().toLocaleDateString("sv-SE");
           return (
-            <div
+            <Link
               key={i}
-              className={`relative flex aspect-square flex-col items-center justify-center rounded-xl text-xs ${
-                isToday ? "bg-accent-50 font-semibold text-accent-600" : "text-neutral-600"
+              href={`/calendar/${cell.iso}`}
+              className={`relative flex aspect-square flex-col items-center justify-center rounded-xl text-xs transition active:scale-[0.96] ${
+                isToday ? "bg-accent-50 font-semibold text-accent-600" : "text-neutral-600 hover:bg-neutral-50"
               }`}
             >
               <span>{cell.date}</span>
@@ -128,7 +130,7 @@ export default async function CalendarPage({
                 </span>
               )}
               {hasEvent && <span className="absolute bottom-1 h-1 w-1 rounded-full bg-sky-400" />}
-            </div>
+            </Link>
           );
         })}
       </div>

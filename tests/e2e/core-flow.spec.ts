@@ -93,6 +93,15 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     await expect(page.locator("h1")).toContainText(/\d{4}년 \d{1,2}월/);
   });
 
+  await test.step("clicking today on the calendar opens the day's entries", async () => {
+    const todayISO = new Date().toLocaleDateString("sv-SE");
+    await page.locator(`a[href="/calendar/${todayISO}"]`).click();
+    await page.waitForURL(`**/calendar/${todayISO}`);
+    await expect(page.getByText(`수정된 테스트 기록 ${runId}`)).toBeVisible();
+    await expect(page.getByText(`비공개 테스트 기록 ${runId}`)).toBeVisible();
+    await expect(page.getByRole("link", { name: "이 날짜에 기록하기" })).toBeVisible();
+  });
+
   await test.step("add a calendar event", async () => {
     await page.getByRole("button", { name: "+ 일정 추가" }).click();
     await page.getByPlaceholder(/미용실, 밥약속/).fill(`E2E 일정 ${runId}`);

@@ -16,6 +16,7 @@ Supabase 프로젝트에 대해 CI에서 도는 하나의 긴 플로우 테스�
 | 앨범 — 본인 사진 | 본인이 올린 사진이 보임 | "uploaded photo shows up in the album" |
 | **기록 비공개 유지** | "나만 보기"로 쓴 기록은 가족 피드에 절대 안 보임 | "private entry is written..." + 2번째 회원 검증 |
 | 캘린더 표시 | 오늘 날짜에 기록 반영 | "entry shows up on the calendar" |
+| **캘린더 날짜 클릭** | 그 날의 기록(내 것 + 가족 공개)과 일정이 보이고, 그 날짜로 기록하기 링크가 있음 | "clicking today on the calendar opens the day's entries" |
 | 캘린더 일정 추가 | 목록에 즉시 표시 | "add a calendar event" |
 | 목표 추가 (가족 공개) | 목록에 즉시 표시 | "add a family-visible goal" |
 | 가족 피드 리액션 | 클릭 시 카운트 증가 | "entry + reaction show up on the family feed" |
