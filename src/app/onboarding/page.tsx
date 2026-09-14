@@ -17,13 +17,5 @@ export default async function OnboardingPage() {
 
   if (membership) redirect("/");
 
-  // Safety net: if signUp() ran without an active session (e.g. email
-  // confirmation is required), createProfile() never ran. family_members
-  // has an FK to profiles, so create/join would otherwise fail here.
-  const { data: profile } = await supabase.from("profiles").select("id").eq("id", user.id).maybeSingle();
-  if (!profile) {
-    await supabase.from("profiles").insert({ id: user.id, name: user.email?.split("@")[0] ?? "가족" });
-  }
-
   return <OnboardingClient />;
 }

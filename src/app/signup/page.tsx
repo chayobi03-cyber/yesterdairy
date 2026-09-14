@@ -4,12 +4,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { createProfile } from "@/app/actions";
+
+function placeholderEmail() {
+  return `${crypto.randomUUID()}@haruvyul.internal`;
+}
 
 export default function SignupPage() {
   const router = useRouter();
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -20,15 +22,37 @@ export default function SignupPage() {
     setError(null);
 
     const supabase = createClient();
-    const { error: signUpError } = await supabase.auth.signUp({ email, password });
+    const email = placeholderEmail();
+    const trimmedName = name.trim();
+
+    const { data, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { name: trimmedName } },
+    });
 
     if (signUpError) {
       setLoading(false);
-      setError(signUpError.message.includes("already registered") ? "이미 가입된 이메일이에요." : "가입에 실패했어요.");
+      setError(
+        signUpError.message.includes("duplicate") || signUpError.status === 500
+          ? "이 이름은 이미 사용 중이에요. 다른 이름을 써볼래요?"
+          : "가입에 실패했어요.",
+      );
       return;
     }
 
-    await createProfile(name);
+    // signUp() may not return a session if email confirmation is still
+    // required at the project level — sign in explicitly to get one. The
+    // account's email is auto-confirmed by a DB trigger, so this succeeds
+    // immediately either way.
+    if (!data.session) {
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) {
+        setLoading(false);
+        setError("가입은 됐는데 로그인에 실패했어요. 로그인 화면에서 다시 시도해주세요.");
+        return;
+      }
+    }
 
     setLoading(false);
     router.replace("/onboarding");
@@ -50,14 +74,6 @@ export default function SignupPage() {
           placeholder="이름"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none focus:border-amber-300"
-        />
-        <input
-          type="email"
-          required
-          placeholder="이메일"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
           className="rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none focus:border-amber-300"
         />
         <input

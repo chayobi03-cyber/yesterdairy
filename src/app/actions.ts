@@ -11,16 +11,6 @@ export async function signOut() {
   redirect("/login");
 }
 
-export async function createProfile(name: string) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  await supabase.from("profiles").insert({ id: user.id, name: name.trim() || "가족" });
-}
-
 export async function createFamily(formData: FormData) {
   const supabase = await createClient();
   const {

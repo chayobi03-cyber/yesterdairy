@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -17,11 +17,27 @@ export default function LoginPage() {
     setError(null);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+    const { data: identity } = await supabase
+      .from("login_identities")
+      .select("email")
+      .eq("display_name", name.trim())
+      .maybeSingle();
+
+    if (!identity) {
+      setLoading(false);
+      setError("그런 이름의 계정을 찾을 수 없어요.");
+      return;
+    }
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: identity.email,
+      password,
+    });
 
     setLoading(false);
-    if (error) {
-      setError("이메일 또는 비밀번호를 확인해주세요.");
+    if (signInError) {
+      setError("이름 또는 비밀번호를 확인해주세요.");
       return;
     }
     router.replace("/");
@@ -38,11 +54,11 @@ export default function LoginPage() {
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <input
-          type="email"
+          type="text"
           required
-          placeholder="이메일"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          placeholder="이름"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
           className="rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none focus:border-amber-300"
         />
         <input
