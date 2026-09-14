@@ -151,3 +151,81 @@ export async function toggleReaction(entryId: string, emoji: string) {
 
   revalidatePath("/family");
 }
+
+export async function createGoal(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const title = String(formData.get("title") ?? "").trim();
+  const targetDate = String(formData.get("target_date") ?? "").trim() || null;
+  const visibility = formData.get("visibility") === "family" ? "family" : "private";
+  if (!title) throw new Error("목표를 입력해주세요.");
+
+  const { error } = await supabase
+    .from("goals")
+    .insert({ user_id: user.id, title, target_date: targetDate, visibility });
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/family");
+}
+
+export async function toggleGoalAchieved(goalId: string, currentlyAchieved: boolean) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  await supabase
+    .from("goals")
+    .update({ achieved_at: currentlyAchieved ? null : new Date().toISOString() })
+    .eq("id", goalId)
+    .eq("user_id", user.id);
+
+  revalidatePath("/family");
+}
+
+export async function toggleCheer(goalId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: existing } = await supabase
+    .from("goal_cheers")
+    .select("id")
+    .eq("goal_id", goalId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (existing) {
+    await supabase.from("goal_cheers").delete().eq("id", existing.id);
+  } else {
+    await supabase.from("goal_cheers").insert({ goal_id: goalId, user_id: user.id });
+  }
+
+  revalidatePath("/family");
+}
+
+export async function createEvent(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const title = String(formData.get("title") ?? "").trim();
+  const eventDate = String(formData.get("event_date") ?? "").trim();
+  const visibility = formData.get("visibility") === "family" ? "family" : "private";
+  if (!title) throw new Error("일정 이름을 입력해주세요.");
+  if (!eventDate) throw new Error("날짜를 선택해주세요.");
+
+  const { error } = await supabase.from("events").insert({ user_id: user.id, title, event_date: eventDate, visibility });
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/calendar");
+}

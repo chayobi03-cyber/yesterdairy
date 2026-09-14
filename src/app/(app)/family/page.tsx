@@ -1,8 +1,19 @@
 import { createClient } from "@/lib/supabase/server";
 import { categoryMeta } from "@/lib/categories";
-import { toggleReaction } from "@/app/actions";
+import { toggleReaction, toggleGoalAchieved, toggleCheer } from "@/app/actions";
+import { GoalForm } from "./goal-form";
 
 const REACTION_EMOJIS = ["🔥", "🌱", "🔍", "💛", "😄"];
+
+type Goal = {
+  id: string;
+  title: string;
+  target_date: string | null;
+  achieved_at: string | null;
+  user_id: string;
+  profiles: { name: string } | null;
+  goal_cheers: { id: string; user_id: string }[];
+};
 
 export default async function FamilyPage() {
   const supabase = await createClient();
@@ -29,6 +40,21 @@ export default async function FamilyPage() {
     .order("entry_date", { ascending: false })
     .limit(30);
 
+  const { data: myGoals } = await supabase
+    .from("goals")
+    .select("id, title, target_date, achieved_at, user_id, profiles(name), goal_cheers(id, user_id)")
+    .eq("user_id", user!.id)
+    .order("created_at", { ascending: false });
+
+  const { data: familyGoals } = await supabase
+    .from("goals")
+    .select("id, title, target_date, achieved_at, user_id, profiles(name), goal_cheers(id, user_id)")
+    .eq("visibility", "family")
+    .neq("user_id", user!.id)
+    .order("created_at", { ascending: false });
+
+  const goals = [...(myGoals ?? []), ...(familyGoals ?? [])] as unknown as Goal[];
+
   return (
     <div className="flex flex-col gap-4 pt-2">
       <div>
@@ -52,6 +78,69 @@ export default async function FamilyPage() {
           })}
         </div>
       )}
+
+      <section className="flex flex-col gap-2">
+        <h2 className="text-sm font-medium text-neutral-500">🎯 가족 목표</h2>
+
+        {!!goals.length && (
+          <ul className="flex flex-col gap-2">
+            {goals.map((goal) => {
+              const isMine = goal.user_id === user!.id;
+              const achieved = !!goal.achieved_at;
+              const iCheered = goal.goal_cheers.some((c) => c.user_id === user!.id);
+
+              return (
+                <li
+                  key={goal.id}
+                  className={`flex items-center gap-2 rounded-2xl border px-3 py-2.5 ${
+                    achieved ? "border-amber-200 bg-amber-50" : "border-neutral-200 bg-white"
+                  }`}
+                >
+                  {isMine ? (
+                    <form action={toggleGoalAchieved.bind(null, goal.id, achieved)}>
+                      <button type="submit" className="text-lg" aria-label="달성 체크">
+                        {achieved ? "✅" : "⬜️"}
+                      </button>
+                    </form>
+                  ) : (
+                    <span className="text-lg">{achieved ? "✅" : "⬜️"}</span>
+                  )}
+
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm ${achieved ? "text-neutral-400 line-through" : "text-neutral-700"}`}>
+                      {goal.title}
+                    </p>
+                    <p className="text-xs text-neutral-400">
+                      {isMine ? "나" : (goal.profiles?.name ?? "가족")}
+                      {goal.target_date ? ` · ~${goal.target_date}` : ""}
+                    </p>
+                  </div>
+
+                  {!isMine && (
+                    <form action={toggleCheer.bind(null, goal.id)}>
+                      <button
+                        type="submit"
+                        className={`shrink-0 rounded-full border px-2.5 py-1 text-xs ${
+                          iCheered ? "border-amber-400 bg-amber-50" : "border-neutral-200 text-neutral-500"
+                        }`}
+                      >
+                        👏 {goal.goal_cheers.length > 0 ? goal.goal_cheers.length : ""}
+                      </button>
+                    </form>
+                  )}
+                  {isMine && goal.goal_cheers.length > 0 && (
+                    <span className="shrink-0 text-xs text-amber-600">👏 {goal.goal_cheers.length}</span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <GoalForm />
+      </section>
+
+      <h2 className="text-sm font-medium text-neutral-500">📝 가족 기록</h2>
 
       {!entries?.length ? (
         <p className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-center text-sm text-neutral-400">

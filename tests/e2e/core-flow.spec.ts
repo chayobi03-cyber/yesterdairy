@@ -48,6 +48,22 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     await expect(page.locator("h1")).toContainText(/\d{4}년 \d{1,2}월/);
   });
 
+  await test.step("add a calendar event", async () => {
+    await page.getByRole("button", { name: "+ 일정 추가" }).click();
+    await page.getByPlaceholder(/미용실, 밥약속/).fill(`E2E 일정 ${runId}`);
+    await page.getByRole("button", { name: "추가" }).click();
+    await expect(page.getByText(`E2E 일정 ${runId}`)).toBeVisible();
+  });
+
+  await test.step("add a family-visible goal", async () => {
+    await page.goto("/family");
+    await page.getByRole("button", { name: "+ 목표 추가" }).click();
+    await page.getByPlaceholder(/줄넘기 1급/).fill(`E2E 목표 ${runId}`);
+    await page.getByRole("button", { name: "나만 보기" }).click(); // flip to family-visible
+    await page.getByRole("button", { name: "추가" }).click();
+    await expect(page.getByText(`E2E 목표 ${runId}`)).toBeVisible();
+  });
+
   await test.step("entry + reaction show up on the family feed", async () => {
     await page.goto("/family");
     await expect(page.getByText(`자동화 테스트 기록 ${runId}`)).toBeVisible();
@@ -89,6 +105,11 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
       // second member can react too, independently of the first member's reaction
       await page2.getByRole("button", { name: /^🌱/ }).click();
       await expect(page2.getByRole("button", { name: /^🌱 1/ })).toBeVisible();
+
+      // and can cheer the first member's family-visible goal
+      await expect(page2.getByText(`E2E 목표 ${runId}`)).toBeVisible();
+      await page2.getByRole("button", { name: /^👏/ }).click();
+      await expect(page2.getByRole("button", { name: /^👏 1/ })).toBeVisible();
     } finally {
       await context2.close();
     }
