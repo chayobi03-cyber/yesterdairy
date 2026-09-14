@@ -5,7 +5,13 @@ const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PORT}`;
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  timeout: 30_000,
+  // This test walks through the whole app in one long flow (now 15+ steps
+  // after color world, editing, comments, album, etc. were added on top of
+  // the original), each step a real round trip to Supabase -- 30s stopped
+  // being enough headroom and started failing at whatever step happened to
+  // be in flight when ordinary network latency landed, not from any actual
+  // bug in the step itself.
+  timeout: 90_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,
   retries: process.env.CI ? 1 : 0,
