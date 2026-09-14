@@ -20,19 +20,25 @@ export async function getItemStats(supabase: SupabaseClient, targetUserId: strin
     categoryCounts[e.category] = (categoryCounts[e.category] ?? 0) + 1;
     entryDays.add(e.entry_date);
   }
+  const totalEntries = entries?.length ?? 0;
 
   const achievedGoals = (goals ?? []).filter((g) => g.achieved_at).length;
   const goalIds = (goals ?? []).map((g) => g.id);
 
-  // cheers genuinely depends on goalIds, so this one has to wait its turn.
-  let cheersReceived = 0;
-  if (goalIds.length) {
-    const { count } = await supabase
-      .from("goal_cheers")
-      .select("id", { count: "exact", head: true })
-      .in("goal_id", goalIds);
-    cheersReceived = count ?? 0;
-  }
+  // cheersReceived depends on goalIds, cheersGiven doesn't — run them together.
+  const [cheersReceivedResult, cheersGivenResult] = await Promise.all([
+    goalIds.length
+      ? supabase.from("goal_cheers").select("id", { count: "exact", head: true }).in("goal_id", goalIds)
+      : Promise.resolve({ count: 0 }),
+    supabase.from("goal_cheers").select("id", { count: "exact", head: true }).eq("user_id", targetUserId),
+  ]);
 
-  return { categoryCounts, achievedGoals, cheersReceived, entryDays: entryDays.size };
+  return {
+    categoryCounts,
+    achievedGoals,
+    cheersReceived: cheersReceivedResult.count ?? 0,
+    cheersGiven: cheersGivenResult.count ?? 0,
+    entryDays: entryDays.size,
+    totalEntries,
+  };
 }
