@@ -43,7 +43,7 @@ export default async function RoomPage({ params }: { params: Promise<{ userId: s
         </p>
       </div>
 
-      <WorldView worldType={profile.world_type} itemCount={unlockedItems.length} />
+      <WorldView worldType={profile.world_type} itemIds={unlockedItems.map((item) => item.id)} />
 
       <section>
         <h2 className="mb-2.5 text-sm font-medium text-neutral-500">모은 아이템 · {unlockedItems.length}</h2>
