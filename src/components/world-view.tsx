@@ -1,75 +1,68 @@
-// Redesigned away from the old "scattered emoji stickers on a flat color"
-// look (read as a 2000s-era mini-homepage) toward what current diary apps
-// (Day One, Stoic, Grid Diary) actually do for a "growth" visual: soft
-// gradients, one abstract focal shape, and small glowing marks that
-// accumulate — not literal clip-art fruit/stars pasted on top.
-//
-// Positions are derived from the index with sin/cos, not Math.random, so
-// server and client render identical markup.
+// Abstract, generative "growth" visuals per world — one focal shape with a
+// soft gradient backdrop, item count expressed as accumulating fruit/stars/
+// moons placed via phyllotaxis (sunflower-seed) packing, not a random
+// scatter of literal emoji stickers (which read as a 2000s mini-homepage).
+// All positions come from the index via sin/cos, so SSR and hydration match.
 
 const TAU = Math.PI * 2;
+const GOLDEN_ANGLE = 2.399963229728653;
 
-function treePoints(count: number) {
-  // Spread along the top canopy arc instead of a random scatter.
+function phyllotaxis(count: number, rx: number, ry: number, cx: number, cy: number) {
   return Array.from({ length: count }, (_, i) => {
-    const t = count > 1 ? i / (count - 1) : 0.5;
-    const angle = Math.PI + t * Math.PI; // left to right across the top half
-    const rx = 78;
-    const ry = 34;
-    const x = 110 + Math.cos(angle) * rx;
-    const y = 78 + Math.sin(angle) * ry + (i % 3) * 4;
-    return { x, y };
-  });
-}
-
-function constellationPoints(count: number) {
-  return Array.from({ length: count }, (_, i) => {
-    const angle = (i * 0.61803398875 + 0.15) * TAU; // golden-ratio spacing
-    const r = 24 + ((i * 17) % 46);
-    const x = 110 + Math.cos(angle) * r * 1.35;
-    const y = 60 + Math.sin(angle) * r;
-    return { x, y };
+    const idx = i + 1;
+    const frac = Math.sqrt(idx / count);
+    const angle = idx * GOLDEN_ANGLE;
+    return { x: cx + Math.cos(angle) * rx * frac, y: cy + Math.sin(angle) * ry * frac };
   });
 }
 
 function planetPoints(count: number) {
   return Array.from({ length: count }, (_, i) => {
-    const angle = i * 0.7 * TAU;
+    const angle = i * 0.78 * TAU;
     const x = 110 + Math.cos(angle) * 84;
-    const y = 60 + Math.sin(angle) * 26;
-    return { x, y, front: Math.sin(angle) > -0.15 };
+    const y = 60 + Math.sin(angle) * 22;
+    const depth = (Math.sin(angle) + 1) / 2;
+    return { x, y, front: Math.sin(angle) > -0.1, scale: 0.8 + 0.35 * depth };
   });
 }
 
 export function WorldView({ worldType, itemCount }: { worldType: string; itemCount: number }) {
-  const count = Math.min(itemCount, 24);
+  const count = Math.max(Math.min(itemCount, 40), 1);
 
   if (worldType === "constellation") {
-    const pts = constellationPoints(count);
+    const pts = phyllotaxis(Math.min(itemCount, 40) || 1, 92, 48, 110, 60);
     return (
       <div
-        className="relative h-52 overflow-hidden rounded-[28px]"
-        style={{ background: "linear-gradient(165deg, #14102c 0%, #241a4d 55%, #2d1f5c 100%)" }}
+        className="relative h-52 overflow-hidden rounded-[28px] shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_24px_-10px_rgba(0,0,0,0.12)]"
+        style={{ background: "radial-gradient(120% 100% at 30% 20%, #2c2264 0%, #17123a 60%, #100c2b 100%)" }}
       >
-        <svg viewBox="0 0 220 120" className="h-full w-full">
-          {pts.slice(1).map((p, i) => (
-            <line
-              key={`l-${i}`}
-              x1={pts[i].x}
-              y1={pts[i].y}
-              x2={p.x}
-              y2={p.y}
-              stroke="rgba(255,255,255,0.22)"
-              strokeWidth={0.6}
-            />
-          ))}
-          {pts.map((p, i) => (
-            <circle key={i} cx={p.x} cy={p.y} r={i % 5 === 0 ? 2.4 : 1.5} fill="#fff" opacity={0.95}>
-              <animate attributeName="opacity" values="0.5;1;0.5" dur={`${3 + (i % 4)}s`} repeatCount="indefinite" />
-            </circle>
-          ))}
-        </svg>
-        <Caption count={itemCount} light label="개의 별" />
+        {itemCount > 0 && (
+          <svg viewBox="0 0 220 120" className="h-full w-full">
+            <defs>
+              <filter id="star-glow">
+                <feGaussianBlur stdDeviation="1.1" result="b" />
+                <feMerge>
+                  <feMergeNode in="b" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+            {pts.map((p, i) => (
+              <circle
+                key={i}
+                cx={p.x}
+                cy={p.y}
+                r={i % 6 === 0 ? 2.6 : 1.3}
+                fill="#fff"
+                filter="url(#star-glow)"
+                opacity={0.95}
+              >
+                <animate attributeName="opacity" values="0.55;1;0.55" dur={`${3 + (i % 4)}s`} repeatCount="indefinite" />
+              </circle>
+            ))}
+          </svg>
+        )}
+        <Caption count={itemCount} label="개의 별" light />
       </div>
     );
   }
@@ -78,22 +71,28 @@ export function WorldView({ worldType, itemCount }: { worldType: string; itemCou
     const pts = planetPoints(count);
     return (
       <div
-        className="relative h-52 overflow-hidden rounded-[28px]"
-        style={{ background: "linear-gradient(165deg, #eef4ff 0%, #dfeaff 100%)" }}
+        className="relative h-52 overflow-hidden rounded-[28px] shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_24px_-10px_rgba(0,0,0,0.12)]"
+        style={{ background: "linear-gradient(180deg, #eef4ff 0%, #dbe8ff 100%)" }}
       >
         <svg viewBox="0 0 220 120" className="h-full w-full">
-          <ellipse cx={110} cy={60} rx={92} ry={30} fill="none" stroke="var(--accent-300)" strokeWidth={1} opacity={0.5} />
-          {pts.filter((p) => !p.front).map((p, i) => (
-            <circle key={`b-${i}`} cx={p.x} cy={p.y} r={2.6} fill="var(--accent-300)" opacity={0.7} />
-          ))}
-          <radialGradient id="planet-core" cx="35%" cy="30%" r="75%">
-            <stop offset="0%" stopColor="var(--accent-200)" />
-            <stop offset="100%" stopColor="var(--accent-500)" />
-          </radialGradient>
-          <circle cx={110} cy={60} r={22} fill="url(#planet-core)" />
-          {pts.filter((p) => p.front).map((p, i) => (
-            <circle key={`f-${i}`} cx={p.x} cy={p.y} r={2.6} fill="var(--accent-500)" />
-          ))}
+          <defs>
+            <radialGradient id="planet-core" cx="34%" cy="28%" r="75%">
+              <stop offset="0%" stopColor="#ffd9a8" />
+              <stop offset="55%" stopColor="var(--accent-400)" />
+              <stop offset="100%" stopColor="var(--accent-600)" />
+            </radialGradient>
+          </defs>
+          <ellipse cx={110} cy={88} rx={40} ry={6} fill="#5b7bb8" opacity={0.12} />
+          <ellipse cx={110} cy={60} rx={92} ry={24} fill="none" stroke="var(--accent-300)" strokeWidth={1.2} strokeDasharray="1.5 4" opacity={0.6} />
+          {itemCount > 0 &&
+            pts
+              .filter((p) => !p.front)
+              .map((p, i) => <circle key={`b-${i}`} cx={p.x} cy={p.y} r={2.4 * p.scale} fill="var(--accent-300)" opacity={0.65} />)}
+          <circle cx={110} cy={60} r={23} fill="url(#planet-core)" />
+          {itemCount > 0 &&
+            pts
+              .filter((p) => p.front)
+              .map((p, i) => <circle key={`f-${i}`} cx={p.x} cy={p.y} r={2.4 * p.scale} fill="var(--accent-500)" />)}
         </svg>
         <Caption count={itemCount} label="개의 달" />
       </div>
@@ -101,38 +100,34 @@ export function WorldView({ worldType, itemCount }: { worldType: string; itemCou
   }
 
   // tree (default)
-  const pts = treePoints(count);
+  const leaves = phyllotaxis(count, 46, 26, 110, 54);
   return (
     <div
-      className="relative h-52 overflow-hidden rounded-[28px]"
-      style={{ background: "linear-gradient(165deg, #eef7ee 0%, #dcefe0 100%)" }}
+      className="relative h-52 overflow-hidden rounded-[28px] shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_24px_-10px_rgba(0,0,0,0.12)]"
+      style={{ background: "linear-gradient(180deg, #f3faf4 0%, #e4f3e7 100%)" }}
     >
       <svg viewBox="0 0 220 120" className="h-full w-full">
-        <path
-          d="M110 120 V72"
-          stroke="#a9845f"
-          strokeWidth={5}
-          strokeLinecap="round"
-        />
-        <path d="M110 90 Q90 78 78 62" stroke="#a9845f" strokeWidth={3} strokeLinecap="round" fill="none" />
-        <path d="M110 90 Q130 78 142 62" stroke="#a9845f" strokeWidth={3} strokeLinecap="round" fill="none" />
-        <ellipse cx={110} cy={62} rx={72} ry={30} fill="var(--accent-100)" opacity={0.6} />
-        {pts.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r={4} fill="var(--accent-400)" opacity={0.9} />
-        ))}
+        <defs>
+          <radialGradient id="canopy" cx="42%" cy="30%" r="75%">
+            <stop offset="0%" stopColor="#bfe6c8" />
+            <stop offset="100%" stopColor="#8fcf9e" />
+          </radialGradient>
+          <linearGradient id="trunk" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#b78d63" />
+            <stop offset="100%" stopColor="#8f6a48" />
+          </linearGradient>
+        </defs>
+        <ellipse cx={110} cy={108} rx={34} ry={6} fill="#000" opacity={0.06} />
+        <path d="M110 108 C108 92 108 78 110 64" stroke="url(#trunk)" strokeWidth={6} strokeLinecap="round" fill="none" />
+        <ellipse cx={110} cy={52} rx={52} ry={34} fill="url(#canopy)" />
+        {itemCount > 0 &&
+          leaves.map((l, i) => <circle key={i} cx={l.x} cy={l.y} r={3 + (i % 3)} fill="var(--accent-400)" opacity={0.92} />)}
       </svg>
-      <Caption count={itemCount} label="개의 잎" />
+      <Caption count={itemCount} label="개의 열매" />
     </div>
   );
 }
 
 function Caption({ count, label, light }: { count: number; label: string; light?: boolean }) {
-  return (
-    <p
-      className={`absolute bottom-3 left-4 text-xs ${light ? "text-white/70" : "text-neutral-500"}`}
-    >
-      {count}
-      {label}
-    </p>
-  );
+  return <p className={`absolute bottom-3 left-4 text-xs font-medium ${light ? "text-white/75" : "text-neutral-500"}`}>{count}{label}</p>;
 }
