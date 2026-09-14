@@ -8,6 +8,7 @@ const ITEMS = [
   { href: "/write", label: "기록", icon: "✏️" },
   { href: "/calendar", label: "달력", icon: "📅" },
   { href: "/family", label: "가족", icon: "💛" },
+  { href: "/settings", label: "설정", icon: "⚙️" },
 ] as const;
 
 export function BottomNav() {

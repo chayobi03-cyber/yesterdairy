@@ -11,6 +11,25 @@ export async function signOut() {
   redirect("/login");
 }
 
+export async function updateName(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) throw new Error("이름을 입력해주세요.");
+
+  const { error } = await supabase.from("profiles").update({ name }).eq("id", user.id);
+  if (error) {
+    throw new Error(error.message.includes("duplicate") ? "이미 사용 중인 이름이에요." : error.message);
+  }
+
+  revalidatePath("/settings");
+  revalidatePath("/family");
+}
+
 export async function createFamily(formData: FormData) {
   const supabase = await createClient();
   const {

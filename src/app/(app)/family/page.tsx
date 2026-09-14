@@ -12,10 +12,14 @@ export default async function FamilyPage() {
 
   const { data: membership } = await supabase
     .from("family_members")
-    .select("families(name, invite_code)")
+    .select("family_id, families(name, invite_code)")
     .eq("user_id", user!.id)
     .maybeSingle();
   const family = membership?.families as unknown as { name: string; invite_code: string } | null;
+
+  const { data: members } = membership
+    ? await supabase.from("family_members").select("role, profiles(name)").eq("family_id", membership.family_id)
+    : { data: null };
 
   const { data: entries } = await supabase
     .from("diary_entries")
@@ -35,6 +39,19 @@ export default async function FamilyPage() {
           </p>
         )}
       </div>
+
+      {!!members?.length && (
+        <div className="flex flex-wrap gap-2">
+          {members.map((m, i) => {
+            const name = (m.profiles as unknown as { name: string } | null)?.name ?? "?";
+            return (
+              <span key={i} className="rounded-full bg-neutral-100 px-3 py-1 text-xs text-neutral-600">
+                {name} · {m.role === "parent" ? "부모" : "아이"}
+              </span>
+            );
+          })}
+        </div>
+      )}
 
       {!entries?.length ? (
         <p className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-center text-sm text-neutral-400">

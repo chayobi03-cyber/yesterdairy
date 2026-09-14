@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { categoryMeta } from "@/lib/categories";
-import { signOut } from "@/app/actions";
 
 function todayISO() {
   return new Date().toLocaleDateString("sv-SE"); // yyyy-mm-dd, local time
@@ -74,12 +73,6 @@ export default async function HomePage() {
           </ul>
         )}
       </section>
-
-      <form action={signOut} className="mt-auto pt-4 text-center">
-        <button type="submit" className="text-xs text-neutral-400 underline">
-          로그아웃
-        </button>
-      </form>
     </div>
   );
 }
