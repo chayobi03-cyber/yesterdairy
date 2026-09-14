@@ -174,6 +174,33 @@ export async function updateEntry(entryId: string, formData: FormData) {
   // entry itself is switched back to private.
   await supabase.from("media").update({ visibility }).eq("entry_id", entryId);
 
+  const { count: existingPhotoCount } = await supabase
+    .from("media")
+    .select("id", { count: "exact", head: true })
+    .eq("entry_id", entryId);
+
+  const photos = formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
+  const room = Math.max(0, 5 - (existingPhotoCount ?? 0));
+
+  for (const [index, file] of photos.slice(0, room).entries()) {
+    const sortOrder = (existingPhotoCount ?? 0) + index;
+    const path = `${user.id}/${entryId}/${sortOrder}-${file.name}`;
+    const { error: uploadError } = await supabase.storage
+      .from("diary-media")
+      .upload(path, file, { contentType: file.type });
+
+    if (uploadError) continue;
+
+    await supabase.from("media").insert({
+      entry_id: entryId,
+      visibility,
+      original_path: path,
+      mime_type: file.type,
+      size_original: file.size,
+      sort_order: sortOrder,
+    });
+  }
+
   revalidatePath("/");
   revalidatePath("/calendar");
   revalidatePath("/family");

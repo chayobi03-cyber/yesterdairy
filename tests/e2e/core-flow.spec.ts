@@ -43,10 +43,11 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     await expect(page.getByText(`자동화 테스트 기록 ${runId}`)).toBeVisible();
   });
 
-  await test.step("edit today's entry", async () => {
+  await test.step("edit today's entry, adding a photo", async () => {
     await page.getByRole("link", { name: "수정" }).click();
     await page.waitForURL(/\/write\//);
     await page.locator('textarea[name="content"]').fill(`수정된 테스트 기록 ${runId}`);
+    await page.locator('input[name="photos"]').setInputFiles("tests/e2e/fixtures/test-photo.png");
     await page.getByRole("button", { name: "수정하기" }).click();
     await page.waitForURL("/");
     await expect(page.getByText(`수정된 테스트 기록 ${runId}`)).toBeVisible();

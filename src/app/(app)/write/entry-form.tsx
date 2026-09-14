@@ -9,6 +9,7 @@ export function EntryForm({
   defaultContent = "",
   defaultVisibility = "private",
   showPhotos = true,
+  photoLabel = "사진 (최대 5장)",
   submitLabel = "기록하기",
   pendingLabel = "저장 중...",
   title = "오늘의 순간",
@@ -19,6 +20,7 @@ export function EntryForm({
   defaultContent?: string;
   defaultVisibility?: "private" | "family";
   showPhotos?: boolean;
+  photoLabel?: string;
   submitLabel?: string;
   pendingLabel?: string;
   title?: string;
@@ -78,7 +80,7 @@ export function EntryForm({
 
       {showPhotos && (
         <div>
-          <label className="mb-1 block text-sm text-neutral-500">사진 (최대 5장)</label>
+          <label className="mb-1 block text-sm text-neutral-500">{photoLabel}</label>
           <input
             type="file"
             name="photos"

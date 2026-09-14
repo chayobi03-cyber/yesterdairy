@@ -32,7 +32,7 @@ export default async function EditEntryPage({ params }: { params: Promise<{ id: 
       defaultCategory={entry.category as CategoryValue}
       defaultContent={entry.content}
       defaultVisibility={entry.visibility === "family" ? "family" : "private"}
-      showPhotos={false}
+      photoLabel="사진 추가 (기존 사진에 더해서, 최대 5장)"
       submitLabel="수정하기"
       pendingLabel="수정 중..."
       title="기록 수정"
