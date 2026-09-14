@@ -3,6 +3,19 @@
 import { useState } from "react";
 import { createFamily, joinFamily, signOut } from "@/app/actions";
 
+// redirect() throws internally (digest starts with "NEXT_REDIRECT") to
+// signal navigation to the framework — let it propagate instead of
+// treating it as an application error, or the redirect never happens.
+function isRedirectError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "digest" in error &&
+    typeof (error as { digest: unknown }).digest === "string" &&
+    (error as { digest: string }).digest.startsWith("NEXT_REDIRECT")
+  );
+}
+
 export function OnboardingClient() {
   const [mode, setMode] = useState<"choose" | "create" | "join">("choose");
   const [error, setError] = useState<string | null>(null);
@@ -14,6 +27,7 @@ export function OnboardingClient() {
     try {
       await action(formData);
     } catch (e) {
+      if (isRedirectError(e)) throw e;
       setError(e instanceof Error ? e.message : "문제가 생겼어요. 다시 시도해주세요.");
     } finally {
       setPending(false);
