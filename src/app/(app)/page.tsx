@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/get-current-user";
 import { categoryMeta } from "@/lib/categories";
 import { ITEMS } from "@/lib/items";
 import { getItemStats } from "@/lib/get-item-stats";
@@ -9,25 +11,24 @@ function todayISO() {
 }
 
 export default async function HomePage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
 
+  const supabase = await createClient();
   const today = todayISO();
 
   // None of these depend on each other — run them concurrently instead of
   // paying for round trip after round trip.
   const [{ data: profile }, { data: todayEntries }, stats] = await Promise.all([
-    supabase.from("profiles").select("name").eq("id", user!.id).single(),
+    supabase.from("profiles").select("name").eq("id", user.id).single(),
     supabase
       .from("diary_entries")
       .select("id, category, content, visibility, created_at")
-      .eq("user_id", user!.id)
+      .eq("user_id", user.id)
       .eq("entry_date", today)
       .is("deleted_at", null)
       .order("created_at", { ascending: false }),
-    getItemStats(supabase, user!.id),
+    getItemStats(supabase, user.id),
   ]);
 
   const unlockedItems = ITEMS.filter((item) => item.isUnlocked(stats));
@@ -82,7 +83,7 @@ export default async function HomePage() {
       <section>
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-sm font-medium text-neutral-500">🎁 모은 아이템</h2>
-          <Link href={`/room/${user!.id}`} className="text-xs text-accent-600 underline">
+          <Link href={`/room/${user.id}`} className="text-xs text-accent-600 underline">
             내 공간 보러가기
           </Link>
         </div>

@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/get-current-user";
 import { categoryMeta } from "@/lib/categories";
 import { EventForm } from "./event-form";
 
@@ -16,23 +18,23 @@ export default async function CalendarPage({
   const lastOfMonth = new Date(year, monthIndex + 1, 0);
   const startWeekday = firstOfMonth.getDay();
 
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
   const [{ data: entries }, { data: events }] = await Promise.all([
     supabase
       .from("diary_entries")
       .select("id, entry_date, category")
-      .eq("user_id", user!.id)
+      .eq("user_id", user.id)
       .is("deleted_at", null)
       .gte("entry_date", firstOfMonth.toLocaleDateString("sv-SE"))
       .lte("entry_date", lastOfMonth.toLocaleDateString("sv-SE")),
     supabase
       .from("events")
       .select("id, event_date, title")
-      .eq("user_id", user!.id)
+      .eq("user_id", user.id)
       .gte("event_date", firstOfMonth.toLocaleDateString("sv-SE"))
       .lte("event_date", lastOfMonth.toLocaleDateString("sv-SE"))
       .order("event_date", { ascending: true }),

@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/get-current-user";
 import { categoryMeta } from "@/lib/categories";
 import { toggleReaction, toggleGoalAchieved, toggleCheer } from "@/app/actions";
 import { GoalForm } from "./goal-form";
@@ -17,15 +19,15 @@ type Goal = {
 };
 
 export default async function FamilyPage() {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
   // membership, entries and goals are all independent of each other —
   // only "members" needs membership.family_id, so that one waits its turn.
   const [{ data: membership }, { data: entries }, { data: myGoals }, { data: familyGoals }] = await Promise.all([
-    supabase.from("family_members").select("family_id, families(name, invite_code)").eq("user_id", user!.id).maybeSingle(),
+    supabase.from("family_members").select("family_id, families(name, invite_code)").eq("user_id", user.id).maybeSingle(),
     supabase
       .from("diary_entries")
       .select("id, category, content, entry_date, user_id, profiles(name), reactions(id, emoji, user_id)")
@@ -36,13 +38,13 @@ export default async function FamilyPage() {
     supabase
       .from("goals")
       .select("id, title, target_date, achieved_at, user_id, profiles(name), goal_cheers(id, user_id)")
-      .eq("user_id", user!.id)
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false }),
     supabase
       .from("goals")
       .select("id, title, target_date, achieved_at, user_id, profiles(name), goal_cheers(id, user_id)")
       .eq("visibility", "family")
-      .neq("user_id", user!.id)
+      .neq("user_id", user.id)
       .order("created_at", { ascending: false }),
   ]);
 
@@ -91,9 +93,9 @@ export default async function FamilyPage() {
         {!!goals.length && (
           <ul className="flex flex-col gap-2">
             {goals.map((goal) => {
-              const isMine = goal.user_id === user!.id;
+              const isMine = goal.user_id === user.id;
               const achieved = !!goal.achieved_at;
-              const iCheered = goal.goal_cheers.some((c) => c.user_id === user!.id);
+              const iCheered = goal.goal_cheers.some((c) => c.user_id === user.id);
 
               return (
                 <li
@@ -161,7 +163,7 @@ export default async function FamilyPage() {
             const myReactions = new Set<string>();
             for (const r of entry.reactions ?? []) {
               reactionCounts.set(r.emoji, (reactionCounts.get(r.emoji) ?? 0) + 1);
-              if (r.user_id === user!.id) myReactions.add(r.emoji);
+              if (r.user_id === user.id) myReactions.add(r.emoji);
             }
 
             return (

@@ -1,16 +1,17 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/get-current-user";
 import { signOut } from "@/app/actions";
 import { SettingsForm } from "./settings-form";
 import { ThemeSection } from "./theme-section";
 import { WorldSection } from "./world-section";
 
 export default async function SettingsPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
 
-  const { data: profile } = await supabase.from("profiles").select("name, world_type").eq("id", user!.id).single();
+  const supabase = await createClient();
+  const { data: profile } = await supabase.from("profiles").select("name, world_type").eq("id", user.id).single();
 
   return (
     <div className="flex flex-col gap-6 pt-2">

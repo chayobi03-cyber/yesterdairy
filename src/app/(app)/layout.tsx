@@ -2,22 +2,20 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { BottomNav } from "@/components/bottom-nav";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/get-current-user";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: membership } = await supabase
+    .from("family_members")
+    .select("family_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
 
-  if (user) {
-    const { data: membership } = await supabase
-      .from("family_members")
-      .select("family_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (!membership) redirect("/onboarding");
-  }
+  if (!membership) redirect("/onboarding");
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col">

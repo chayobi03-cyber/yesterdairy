@@ -1,6 +1,7 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/get-current-user";
 import { getItemStats } from "@/lib/get-item-stats";
 import { ITEMS } from "@/lib/items";
 import { WorldView } from "@/components/world-view";
@@ -9,10 +10,10 @@ const WORLD_LABEL: Record<string, string> = { tree: "나무", constellation: "�
 
 export default async function RoomPage({ params }: { params: Promise<{ userId: string }> }) {
   const { userId } = await params;
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
   // Independent of each other, so don't pay three sequential round trips.
   const [{ data: profile }, stats, { data: goals }] = await Promise.all([
@@ -22,7 +23,7 @@ export default async function RoomPage({ params }: { params: Promise<{ userId: s
   ]);
   if (!profile) notFound();
 
-  const isMe = user!.id === userId;
+  const isMe = user.id === userId;
   const unlockedItems = ITEMS.filter((item) => item.isUnlocked(stats));
 
   return (
