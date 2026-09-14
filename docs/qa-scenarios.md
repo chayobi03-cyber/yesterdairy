@@ -31,6 +31,7 @@ Supabase 프로젝트에 대해 CI에서 도는 하나의 긴 플로우 테스�
 | 세계관 전환 (색모음집) | 방 화면에 "색 도감" 표시 | "switch to the color-collection world..." |
 | 닉네임 변경 | 저장 메시지 표시, 로그인 아이디는 안 바뀜 | "change nickname..." |
 | 로그아웃 → 재로그인 | 온보딩 아님, 바로 홈으로 이동 | "sign out and log back in..." |
+| **시간대 — "오늘" 기록의 날짜** | 서버 시각(UTC)이 아니라 기기(브라우저)의 로컬 날짜로 기록됨 — UTC보다 앞선 시간대에서 자정 직후에 써도 전날로 안 밀림 | `tests/e2e/timezone.spec.ts` |
 
 ## 아직 자동화되지 않은 시나리오 (수동 확인 필요)
 

@@ -1,9 +1,6 @@
 import { createEntry } from "@/app/actions";
+import { getTodayISO } from "@/lib/today";
 import { EntryForm } from "./entry-form";
-
-function todayISO() {
-  return new Date().toLocaleDateString("sv-SE");
-}
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -13,7 +10,7 @@ export default async function WritePage({
   searchParams: Promise<{ date?: string }>;
 }) {
   const { date } = await searchParams;
-  const today = todayISO();
+  const today = await getTodayISO();
   const entryDate = date && DATE_RE.test(date) ? date : today;
   const isToday = entryDate === today;
 

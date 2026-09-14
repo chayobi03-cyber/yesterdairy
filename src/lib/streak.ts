@@ -9,9 +9,8 @@ function addDays(iso: string, delta: number): string {
   return d.toLocaleDateString("sv-SE");
 }
 
-export function computeStreak(entryDates: string[]): number {
+export function computeStreak(entryDates: string[], today: string): number {
   const dates = new Set(entryDates);
-  const today = new Date().toLocaleDateString("sv-SE");
   const anchor = dates.has(today) ? today : addDays(today, -1);
   if (!dates.has(anchor)) return 0;
 

@@ -13,7 +13,7 @@ export default async function EditEntryPage({ params }: { params: Promise<{ id: 
   const supabase = await createClient();
   const { data: entry } = await supabase
     .from("diary_entries")
-    .select("category, content, visibility")
+    .select("category, content, visibility, entry_date")
     .eq("id", id)
     .eq("user_id", user.id)
     .is("deleted_at", null)
@@ -33,6 +33,7 @@ export default async function EditEntryPage({ params }: { params: Promise<{ id: 
       defaultContent={entry.content}
       defaultVisibility={entry.visibility === "family" ? "family" : "private"}
       showPrompt={false}
+      promptDate={entry.entry_date}
       photoLabel="사진 추가 (기존 사진에 더해서, 최대 5장)"
       submitLabel="수정하기"
       pendingLabel="수정 중..."

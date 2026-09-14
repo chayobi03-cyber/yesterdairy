@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/get-current-user";
 import { computeStreak } from "@/lib/streak";
 import { daysUntilNextStage } from "@/lib/pet";
+import { getTodayISO } from "@/lib/today";
 import { PetView } from "@/components/pet-view";
 
 export default async function ChallengePage() {
@@ -10,13 +11,12 @@ export default async function ChallengePage() {
   if (!user) redirect("/login");
 
   const supabase = await createClient();
-  const { data: entries } = await supabase
-    .from("diary_entries")
-    .select("entry_date")
-    .eq("user_id", user.id)
-    .is("deleted_at", null);
+  const [{ data: entries }, today] = await Promise.all([
+    supabase.from("diary_entries").select("entry_date").eq("user_id", user.id).is("deleted_at", null),
+    getTodayISO(),
+  ]);
 
-  const streak = computeStreak((entries ?? []).map((e) => e.entry_date));
+  const streak = computeStreak((entries ?? []).map((e) => e.entry_date), today);
   const toNext = daysUntilNextStage(streak);
 
   return (

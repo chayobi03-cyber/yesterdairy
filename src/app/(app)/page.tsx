@@ -5,17 +5,14 @@ import { getCurrentUser } from "@/lib/supabase/get-current-user";
 import { categoryMeta } from "@/lib/categories";
 import { ITEMS } from "@/lib/items";
 import { getItemStats } from "@/lib/get-item-stats";
-
-function todayISO() {
-  return new Date().toLocaleDateString("sv-SE"); // yyyy-mm-dd, local time
-}
+import { getTodayISO } from "@/lib/today";
 
 export default async function HomePage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   const supabase = await createClient();
-  const today = todayISO();
+  const today = await getTodayISO();
 
   // None of these depend on each other — run them concurrently instead of
   // paying for round trip after round trip.

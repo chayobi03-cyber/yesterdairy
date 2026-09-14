@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/get-current-user";
 import { categoryMeta } from "@/lib/categories";
+import { getTodayISO } from "@/lib/today";
 import { EventForm } from "./event-form";
 
 // Small deterministic per-person color for the tiny "who wrote this" dots --
@@ -21,7 +22,8 @@ export default async function CalendarPage({
   searchParams: Promise<{ month?: string }>;
 }) {
   const { month } = await searchParams;
-  const now = month ? new Date(`${month}-01T00:00:00`) : new Date();
+  const todayISO = await getTodayISO();
+  const now = month ? new Date(`${month}-01T00:00:00`) : new Date(`${todayISO}T00:00:00`);
   const year = now.getFullYear();
   const monthIndex = now.getMonth();
 
@@ -106,7 +108,7 @@ export default async function CalendarPage({
           if (!cell.date) return <div key={i} />;
           const marks = cell.iso ? byDate.get(cell.iso) : undefined;
           const hasEvent = cell.iso ? eventsByDate.has(cell.iso) : false;
-          const isToday = cell.iso === new Date().toLocaleDateString("sv-SE");
+          const isToday = cell.iso === todayISO;
           return (
             <Link
               key={i}

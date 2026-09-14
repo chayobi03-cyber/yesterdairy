@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { ThemeInit } from "@/components/theme-init";
+import { LocalDateSync } from "@/components/local-date-sync";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -47,6 +48,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <ThemeInit />
+        <LocalDateSync />
         {children}
         <ServiceWorkerRegister />
       </body>
