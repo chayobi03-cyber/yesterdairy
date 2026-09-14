@@ -91,7 +91,7 @@ export default async function CalendarPage({
             <div
               key={i}
               className={`relative flex aspect-square flex-col items-center justify-center rounded-xl text-xs ${
-                isToday ? "bg-amber-50 font-semibold text-amber-600" : "text-neutral-600"
+                isToday ? "bg-accent-50 font-semibold text-accent-600" : "text-neutral-600"
               }`}
             >
               <span>{cell.date}</span>

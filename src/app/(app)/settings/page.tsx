@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "@/app/actions";
 import { SettingsForm } from "./settings-form";
+import { ThemeSection } from "./theme-section";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -15,6 +16,8 @@ export default async function SettingsPage() {
       <h1 className="text-lg font-semibold">설정</h1>
 
       <SettingsForm currentName={profile?.name ?? ""} />
+
+      <ThemeSection />
 
       <form action={signOut} className="pt-2 text-center">
         <button type="submit" className="text-xs text-neutral-400 underline">

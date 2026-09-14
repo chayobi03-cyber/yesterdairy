@@ -93,7 +93,7 @@ export default async function FamilyPage() {
                 <li
                   key={goal.id}
                   className={`flex items-center gap-2 rounded-2xl border px-3 py-2.5 ${
-                    achieved ? "border-amber-200 bg-amber-50" : "border-neutral-200 bg-white"
+                    achieved ? "border-accent-200 bg-accent-50" : "border-line bg-card"
                   }`}
                 >
                   {isMine ? (
@@ -121,7 +121,7 @@ export default async function FamilyPage() {
                       <button
                         type="submit"
                         className={`shrink-0 rounded-full border px-2.5 py-1 text-xs ${
-                          iCheered ? "border-amber-400 bg-amber-50" : "border-neutral-200 text-neutral-500"
+                          iCheered ? "border-accent-400 bg-accent-50" : "border-line text-neutral-500"
                         }`}
                       >
                         👏 {goal.goal_cheers.length > 0 ? goal.goal_cheers.length : ""}
@@ -129,7 +129,7 @@ export default async function FamilyPage() {
                     </form>
                   )}
                   {isMine && goal.goal_cheers.length > 0 && (
-                    <span className="shrink-0 text-xs text-amber-600">👏 {goal.goal_cheers.length}</span>
+                    <span className="shrink-0 text-xs text-accent-600">👏 {goal.goal_cheers.length}</span>
                   )}
                 </li>
               );
@@ -143,7 +143,7 @@ export default async function FamilyPage() {
       <h2 className="text-sm font-medium text-neutral-500">📝 가족 기록</h2>
 
       {!entries?.length ? (
-        <p className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-center text-sm text-neutral-400">
+        <p className="rounded-2xl border border-dashed border-line px-4 py-6 text-center text-sm text-neutral-400">
           아직 가족에게 공개된 기록이 없어요.
         </p>
       ) : (
@@ -159,7 +159,7 @@ export default async function FamilyPage() {
             }
 
             return (
-              <li key={entry.id} className="rounded-2xl border border-neutral-200 bg-white px-4 py-3">
+              <li key={entry.id} className="rounded-2xl border border-line bg-card px-4 py-3 shadow-sm">
                 <div className="flex items-center gap-2 text-sm">
                   <span>{meta.emoji}</span>
                   <span className="font-medium">{authorName}</span>
@@ -176,7 +176,7 @@ export default async function FamilyPage() {
                         <button
                           type="submit"
                           className={`rounded-full border px-2.5 py-1 text-xs ${
-                            mine ? "border-amber-400 bg-amber-50" : "border-neutral-200 text-neutral-500"
+                            mine ? "border-accent-400 bg-accent-50" : "border-line text-neutral-500"
                           }`}
                         >
                           {emoji} {count > 0 ? count : ""}

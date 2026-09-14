@@ -39,13 +39,13 @@ export function OnboardingClient() {
         <div className="flex flex-col gap-3">
           <button
             onClick={() => setMode("create")}
-            className="rounded-2xl bg-amber-400 px-4 py-3 text-sm font-medium text-white"
+            className="rounded-2xl bg-accent-400 px-4 py-3 text-sm font-medium text-white shadow-sm shadow-accent-200/60 transition active:scale-[0.98]"
           >
             새 가족 만들기
           </button>
           <button
             onClick={() => setMode("join")}
-            className="rounded-2xl border border-neutral-200 px-4 py-3 text-sm font-medium text-neutral-700"
+            className="rounded-2xl border border-line px-4 py-3 text-sm font-medium text-neutral-700"
           >
             초대 코드로 참여하기
           </button>
@@ -58,14 +58,14 @@ export function OnboardingClient() {
             name="family_name"
             required
             placeholder="가족 이름 (예: 우리 가족)"
-            className="rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none focus:border-amber-300"
+            className="rounded-2xl border border-line px-4 py-3 text-sm outline-none focus:border-accent-300"
           />
           <RoleSelect />
           {error && <p className="text-sm text-rose-500">{error}</p>}
           <button
             type="submit"
             disabled={pending}
-            className="rounded-2xl bg-amber-400 px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
+            className="rounded-2xl bg-accent-400 px-4 py-3 text-sm font-medium text-white shadow-sm shadow-accent-200/60 transition active:scale-[0.98] disabled:opacity-60"
           >
             {pending ? "만드는 중..." : "가족 만들기"}
           </button>
@@ -81,7 +81,7 @@ export function OnboardingClient() {
             name="invite_code"
             required
             placeholder="초대 코드 (6자리)"
-            className="rounded-2xl border border-neutral-200 px-4 py-3 text-center text-lg tracking-widest uppercase outline-none focus:border-amber-300"
+            className="rounded-2xl border border-line px-4 py-3 text-center text-lg tracking-widest uppercase outline-none focus:border-accent-300"
             maxLength={6}
           />
           <RoleSelect />
@@ -89,7 +89,7 @@ export function OnboardingClient() {
           <button
             type="submit"
             disabled={pending}
-            className="rounded-2xl bg-amber-400 px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
+            className="rounded-2xl bg-accent-400 px-4 py-3 text-sm font-medium text-white shadow-sm shadow-accent-200/60 transition active:scale-[0.98] disabled:opacity-60"
           >
             {pending ? "참여하는 중..." : "참여하기"}
           </button>
@@ -110,12 +110,12 @@ export function OnboardingClient() {
 
 function RoleSelect() {
   return (
-    <div className="flex gap-2 rounded-2xl border border-neutral-200 p-1 text-sm">
-      <label className="flex flex-1 cursor-pointer items-center justify-center gap-1 rounded-xl py-2 has-[:checked]:bg-amber-50 has-[:checked]:font-medium">
+    <div className="flex gap-2 rounded-2xl border border-line p-1 text-sm">
+      <label className="flex flex-1 cursor-pointer items-center justify-center gap-1 rounded-xl py-2 has-[:checked]:bg-accent-50 has-[:checked]:font-medium">
         <input type="radio" name="role" value="parent" defaultChecked className="sr-only" />
         부모
       </label>
-      <label className="flex flex-1 cursor-pointer items-center justify-center gap-1 rounded-xl py-2 has-[:checked]:bg-amber-50 has-[:checked]:font-medium">
+      <label className="flex flex-1 cursor-pointer items-center justify-center gap-1 rounded-xl py-2 has-[:checked]:bg-accent-50 has-[:checked]:font-medium">
         <input type="radio" name="role" value="child" className="sr-only" />
         아이
       </label>

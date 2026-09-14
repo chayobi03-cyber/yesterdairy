@@ -1,26 +1,106 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens. Accent is themeable at runtime — settings writes a
+ * data-theme attribute on <html> and these variables swap underneath,
+ * repainting every accent-* utility below without touching components.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --paper: #fdfaf6;
+  --card: #ffffff;
+  --ink: #2b2620;
+  --line: #ece4d8;
+
+  --accent-50: #fff4e8;
+  --accent-100: #ffe6cc;
+  --accent-200: #ffd0a3;
+  --accent-300: #ffb877;
+  --accent-400: #f5a259;
+  --accent-500: #ea8a3d;
+  --accent-600: #cf6f28;
+  --accent-700: #a8571e;
+}
+
+[data-theme="peach"] {
+  --accent-50: #fff1ec;
+  --accent-100: #ffe0d4;
+  --accent-200: #ffc2ac;
+  --accent-300: #ff9d7d;
+  --accent-400: #fb8161;
+  --accent-500: #ef6647;
+  --accent-600: #d14e32;
+  --accent-700: #a83c25;
+}
+
+[data-theme="lavender"] {
+  --accent-50: #f4f1ff;
+  --accent-100: #e6ddff;
+  --accent-200: #d0c0ff;
+  --accent-300: #b39dff;
+  --accent-400: #9b81f5;
+  --accent-500: #8367e0;
+  --accent-600: #684dc4;
+  --accent-700: #4f3a99;
+}
+
+[data-theme="mint"] {
+  --accent-50: #eefaf3;
+  --accent-100: #d5f2e2;
+  --accent-200: #a9e4c6;
+  --accent-300: #78d1a7;
+  --accent-400: #4fbd8c;
+  --accent-500: #38a476;
+  --accent-600: #2a835e;
+  --accent-700: #216a4c;
+}
+
+[data-theme="sky"] {
+  --accent-50: #eef7ff;
+  --accent-100: #d8ecff;
+  --accent-200: #b0d9ff;
+  --accent-300: #7ec0ff;
+  --accent-400: #55a6f7;
+  --accent-500: #3c8ce0;
+  --accent-600: #2c6fbc;
+  --accent-700: #235792;
+}
+
+[data-theme="rose"] {
+  --accent-50: #fff0f4;
+  --accent-100: #ffdce6;
+  --accent-200: #ffb8cd;
+  --accent-300: #ff8fb0;
+  --accent-400: #f66f97;
+  --accent-500: #e2517c;
+  --accent-600: #c13a63;
+  --accent-700: #982c4d;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-line: var(--line);
+
+  --color-accent-50: var(--accent-50);
+  --color-accent-100: var(--accent-100);
+  --color-accent-200: var(--accent-200);
+  --color-accent-300: var(--accent-300);
+  --color-accent-400: var(--accent-400);
+  --color-accent-500: var(--accent-500);
+  --color-accent-600: var(--accent-600);
+  --color-accent-700: var(--accent-700);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+::selection {
+  background: var(--accent-200);
 }

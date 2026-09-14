@@ -76,14 +76,14 @@ export default function SignupPage() {
           placeholder="아이디 (로그인용)"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          className="rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none focus:border-amber-300"
+          className="rounded-2xl border border-line px-4 py-3 text-sm outline-none focus:border-accent-300"
         />
         <input
           type="text"
           placeholder="닉네임 (가족에게 보이는 이름, 비워두면 아이디와 동일)"
           value={nickname}
           onChange={(e) => setNickname(e.target.value)}
-          className="rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none focus:border-amber-300"
+          className="rounded-2xl border border-line px-4 py-3 text-sm outline-none focus:border-accent-300"
         />
         <input
           type="password"
@@ -92,13 +92,13 @@ export default function SignupPage() {
           placeholder="비밀번호 (6자 이상)"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none focus:border-amber-300"
+          className="rounded-2xl border border-line px-4 py-3 text-sm outline-none focus:border-accent-300"
         />
         {error && <p className="text-sm text-rose-500">{error}</p>}
         <button
           type="submit"
           disabled={loading}
-          className="mt-2 rounded-2xl bg-amber-400 px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
+          className="mt-2 rounded-2xl bg-accent-400 px-4 py-3 text-sm font-medium text-white shadow-sm shadow-accent-200/60 transition active:scale-[0.98] disabled:opacity-60"
         >
           {loading ? "가입 중..." : "가입하기"}
         </button>

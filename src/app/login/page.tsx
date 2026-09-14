@@ -59,7 +59,7 @@ export default function LoginPage() {
           placeholder="아이디"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          className="rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none focus:border-amber-300"
+          className="rounded-2xl border border-line px-4 py-3 text-sm outline-none focus:border-accent-300"
         />
         <input
           type="password"
@@ -67,13 +67,13 @@ export default function LoginPage() {
           placeholder="비밀번호"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none focus:border-amber-300"
+          className="rounded-2xl border border-line px-4 py-3 text-sm outline-none focus:border-accent-300"
         />
         {error && <p className="text-sm text-rose-500">{error}</p>}
         <button
           type="submit"
           disabled={loading}
-          className="mt-2 rounded-2xl bg-amber-400 px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
+          className="mt-2 rounded-2xl bg-accent-400 px-4 py-3 text-sm font-medium text-white shadow-sm shadow-accent-200/60 transition active:scale-[0.98] disabled:opacity-60"
         >
           {loading ? "로그인 중..." : "로그인"}
         </button>

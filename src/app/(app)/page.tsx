@@ -40,7 +40,7 @@ export default async function HomePage() {
 
       <Link
         href="/write"
-        className="flex items-center justify-center gap-2 rounded-3xl bg-amber-400 px-6 py-4 text-sm font-medium text-white shadow-sm active:scale-[0.98]"
+        className="flex items-center justify-center gap-2 rounded-3xl bg-accent-400 px-6 py-4 text-sm font-medium text-white shadow-sm shadow-accent-200/60 transition active:scale-[0.98]"
       >
         ✏️ 오늘의 순간 기록하기
       </Link>
@@ -48,7 +48,7 @@ export default async function HomePage() {
       <section>
         <h2 className="mb-2 text-sm font-medium text-neutral-500">오늘의 기록</h2>
         {!todayEntries?.length ? (
-          <p className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-center text-sm text-neutral-400">
+          <p className="rounded-2xl border border-dashed border-line px-4 py-6 text-center text-sm text-neutral-400">
             아직 오늘 기록이 없어요. 지금 적어도 그날의 기록이에요.
           </p>
         ) : (
@@ -56,12 +56,12 @@ export default async function HomePage() {
             {todayEntries.map((entry) => {
               const meta = categoryMeta(entry.category);
               return (
-                <li key={entry.id} className="rounded-2xl border border-neutral-200 bg-white px-4 py-3">
+                <li key={entry.id} className="rounded-2xl border border-line bg-card px-4 py-3 shadow-sm">
                   <div className="flex items-center gap-2 text-sm">
                     <span>{meta.emoji}</span>
                     <span className="font-medium">{meta.label}</span>
                     {entry.visibility === "family" && (
-                      <span className="ml-auto rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-600">
+                      <span className="ml-auto rounded-full bg-accent-50 px-2 py-0.5 text-[11px] text-accent-600">
                         가족 공개
                       </span>
                     )}

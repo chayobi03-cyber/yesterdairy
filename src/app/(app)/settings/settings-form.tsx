@@ -56,12 +56,12 @@ export function SettingsForm({ currentName }: { currentName: string }) {
             name="name"
             defaultValue={currentName}
             required
-            className="flex-1 rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none focus:border-amber-300"
+            className="flex-1 rounded-2xl border border-line px-4 py-3 text-sm outline-none focus:border-accent-300"
           />
           <button
             type="submit"
             disabled={namePending}
-            className="rounded-2xl bg-amber-400 px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
+            className="rounded-2xl bg-accent-400 px-4 py-3 text-sm font-medium text-white shadow-sm shadow-accent-200/60 transition active:scale-[0.98] disabled:opacity-60"
           >
             저장
           </button>
@@ -80,12 +80,12 @@ export function SettingsForm({ currentName }: { currentName: string }) {
             minLength={6}
             required
             placeholder="새 비밀번호 (6자 이상)"
-            className="rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none focus:border-amber-300"
+            className="rounded-2xl border border-line px-4 py-3 text-sm outline-none focus:border-accent-300"
           />
           <button
             type="submit"
             disabled={passwordPending}
-            className="rounded-2xl bg-amber-400 px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
+            className="rounded-2xl bg-accent-400 px-4 py-3 text-sm font-medium text-white shadow-sm shadow-accent-200/60 transition active:scale-[0.98] disabled:opacity-60"
           >
             {passwordPending ? "변경 중..." : "비밀번호 저장"}
           </button>
