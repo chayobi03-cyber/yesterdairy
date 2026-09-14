@@ -33,6 +33,18 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     await expect(page).toHaveURL("/");
   });
 
+  await test.step("bottom nav stays at the simplified 5 tabs", async () => {
+    const nav = page.locator("nav");
+    await expect(nav.getByRole("link", { name: "오늘" })).toBeVisible();
+    await expect(nav.getByRole("link", { name: "달력" })).toBeVisible();
+    await expect(nav.getByRole("link", { name: "가족" })).toBeVisible();
+    await expect(nav.getByRole("link", { name: "앨범" })).toBeVisible();
+    await expect(nav.getByRole("link", { name: "설정" })).toBeVisible();
+    // "기록" was deliberately dropped -- writing is one tap from Home already.
+    await expect(nav.getByRole("link", { name: "기록" })).toHaveCount(0);
+    await expect(nav.getByRole("link")).toHaveCount(5);
+  });
+
   await test.step("write a family-visible entry", async () => {
     await page.getByRole("link", { name: /오늘의 순간 기록하기/ }).click();
     await page.waitForURL("**/write");
@@ -64,6 +76,16 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
   await test.step("uploaded photo shows up in the album", async () => {
     await page.goto("/album");
     await expect(page.locator("img")).toHaveCount(1);
+  });
+
+  await test.step("private entry is written but stays hidden from family (checked later)", async () => {
+    await page.goto("/write");
+    await page.locator('textarea[name="content"]').fill(`비공개 테스트 기록 ${runId}`);
+    // visibility toggle defaults to "나만 보기" (private) -- deliberately not
+    // clicked here, unlike the family-visible entry above.
+    await page.getByRole("button", { name: "기록하기" }).click();
+    await page.waitForURL("/");
+    await expect(page.getByText(`비공개 테스트 기록 ${runId}`)).toBeVisible();
   });
 
   await test.step("entry shows up on the calendar", async () => {
@@ -127,6 +149,17 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
       await page2.goto("/family");
       await expect(page2.getByText(familyName)).toBeVisible();
       await expect(page2.getByText(`수정된 테스트 기록 ${runId}`)).toBeVisible();
+      // privacy boundary: an entry left as "나만 보기" must never reach the
+      // family feed, regardless of how many other entries that day are shared.
+      await expect(page2.getByText(`비공개 테스트 기록 ${runId}`)).not.toBeVisible();
+
+      // the family-visible entry's photo should be visible too -- this is
+      // what the storage RLS policy added for the album (migration 0010) is
+      // actually for: media table access alone isn't enough to fetch the file.
+      await page2.goto("/album");
+      await expect(page2.locator("img")).toHaveCount(1);
+
+      await page2.goto("/family");
       // both members should be listed by nickname (role is "부모" for both
       // in this test; matching the full "name · role" text avoids username2
       // — which is literally "<username>_2" — accidentally substring-matching
