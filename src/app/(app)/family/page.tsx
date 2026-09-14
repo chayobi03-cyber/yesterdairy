@@ -3,8 +3,9 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/get-current-user";
 import { categoryMeta } from "@/lib/categories";
-import { toggleReaction, toggleGoalAchieved, toggleCheer } from "@/app/actions";
+import { toggleReaction, toggleGoalAchieved, toggleCheer, deleteComment } from "@/app/actions";
 import { GoalForm } from "./goal-form";
+import { CommentForm } from "./comment-form";
 
 const REACTION_EMOJIS = ["🔥", "🌱", "🔍", "💛", "😄"];
 
@@ -30,7 +31,9 @@ export default async function FamilyPage() {
     supabase.from("family_members").select("family_id, families(name, invite_code)").eq("user_id", user.id).maybeSingle(),
     supabase
       .from("diary_entries")
-      .select("id, category, content, entry_date, user_id, profiles(name), reactions(id, emoji, user_id)")
+      .select(
+        "id, category, content, entry_date, user_id, profiles(name), reactions(id, emoji, user_id), comments(id, content, user_id, created_at, profiles(name))"
+      )
       .eq("visibility", "family")
       .is("deleted_at", null)
       .order("entry_date", { ascending: false })
@@ -192,6 +195,33 @@ export default async function FamilyPage() {
                       </form>
                     );
                   })}
+                </div>
+
+                {!!entry.comments?.length && (
+                  <ul className="mt-2.5 flex flex-col gap-1.5 border-t border-line pt-2.5">
+                    {[...entry.comments]
+                      .sort((a, b) => a.created_at.localeCompare(b.created_at))
+                      .map((comment) => {
+                        const commentAuthor = (comment.profiles as unknown as { name: string } | null)?.name ?? "가족";
+                        return (
+                          <li key={comment.id} className="flex items-start gap-1.5 text-xs">
+                            <span className="font-medium text-neutral-500">{commentAuthor}</span>
+                            <span className="flex-1 text-neutral-600">{comment.content}</span>
+                            {comment.user_id === user.id && (
+                              <form action={deleteComment.bind(null, comment.id)}>
+                                <button type="submit" className="text-neutral-300">
+                                  ×
+                                </button>
+                              </form>
+                            )}
+                          </li>
+                        );
+                      })}
+                  </ul>
+                )}
+
+                <div className="mt-2">
+                  <CommentForm entryId={entry.id} />
                 </div>
               </li>
             );

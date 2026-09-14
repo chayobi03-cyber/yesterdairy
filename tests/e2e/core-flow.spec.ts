@@ -91,6 +91,15 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     inviteCode = match[1];
   });
 
+  await test.step("add and delete a comment on the family feed", async () => {
+    await page.getByPlaceholder("댓글 달기...").fill(`E2E 댓글 ${runId}`);
+    await page.getByRole("button", { name: "등록" }).click();
+    await expect(page.getByText(`E2E 댓글 ${runId}`)).toBeVisible();
+
+    await page.getByRole("button", { name: "×" }).click();
+    await expect(page.getByText(`E2E 댓글 ${runId}`)).not.toBeVisible();
+  });
+
   await test.step("second family member joins via invite code and sees the shared entry", async () => {
     const context2 = await browser.newContext();
     const page2 = await context2.newPage();
