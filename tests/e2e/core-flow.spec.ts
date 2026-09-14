@@ -139,6 +139,18 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     await expect(page.getByText("별자리 세계관")).toBeVisible();
   });
 
+  await test.step("switch to the color-collection world and see the color codex", async () => {
+    await page.goto("/settings");
+    await page.getByRole("button", { name: "색모음집" }).click();
+    await expect(page.getByRole("button", { name: "색모음집" })).toBeEnabled({ timeout: 20_000 });
+
+    await page.goto("/");
+    await page.getByRole("link", { name: "내 공간 보러가기" }).click();
+    await page.waitForURL(/\/room\//);
+    await expect(page.getByText("색모음집 세계관")).toBeVisible();
+    await expect(page.getByText(/🎨 색 도감/)).toBeVisible();
+  });
+
   await test.step("change nickname in settings without breaking login id", async () => {
     await page.goto("/settings");
     const nicknameInput = page.locator('input[name="name"]');

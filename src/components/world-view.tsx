@@ -1,4 +1,5 @@
 import { CONSTELLATION_CREATURES, PLANET_CREATURES, pickCreature } from "@/lib/creatures";
+import { COLORS, pickColorIndex } from "@/lib/colors";
 
 // Each world is a small "collection" scene: unlocked items show up as real
 // illustrated creatures (see lib/creatures.ts) scattered across a themed
@@ -58,7 +59,37 @@ function Dot({ x, y, color, light }: { x: number; y: number; color?: string; lig
 export function WorldView({ worldType, itemIds }: { worldType: string; itemIds: string[] }) {
   if (worldType === "constellation") return <ConstellationScene itemIds={itemIds} />;
   if (worldType === "planet") return <PlanetScene itemIds={itemIds} />;
+  if (worldType === "color") return <ColorScene itemIds={itemIds} />;
   return <TreeScene itemIds={itemIds} />;
+}
+
+function ColorScene({ itemIds }: { itemIds: string[] }) {
+  const count = itemIds.length;
+  const pts = phyllotaxis(Math.min(count, 40) || 1, 38, 32, 50, 48);
+
+  return (
+    <div
+      className="relative h-52 overflow-hidden rounded-[28px] shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_24px_-10px_rgba(0,0,0,0.12)]"
+      style={{ background: "linear-gradient(180deg, #fff9f2, #fff1e0)" }}
+    >
+      {count > 0 &&
+        pts.map((p, i) => (
+          <span
+            key={i}
+            className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
+            style={{
+              left: `${p.x}%`,
+              top: `${p.y}%`,
+              width: `${11 + (i % 3) * 3}%`,
+              aspectRatio: 1,
+              background: COLORS[pickColorIndex(itemIds[i])].hex,
+              boxShadow: "inset 0 -3px 6px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06)",
+            }}
+          />
+        ))}
+      <Caption count={count} label="가지 색을 모았어요" />
+    </div>
+  );
 }
 
 function ConstellationScene({ itemIds }: { itemIds: string[] }) {

@@ -35,7 +35,7 @@ export async function updateWorldType(worldType: string) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  if (!["tree", "constellation", "planet"].includes(worldType)) {
+  if (!["tree", "constellation", "planet", "color"].includes(worldType)) {
     throw new Error("알 수 없는 세계관이에요.");
   }
 

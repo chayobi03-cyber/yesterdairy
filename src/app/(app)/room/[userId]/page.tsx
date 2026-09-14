@@ -4,9 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/get-current-user";
 import { getItemStats } from "@/lib/get-item-stats";
 import { ITEMS } from "@/lib/items";
+import { COLORS, pickColorIndex } from "@/lib/colors";
 import { WorldView } from "@/components/world-view";
 
-const WORLD_LABEL: Record<string, string> = { tree: "나무", constellation: "별자리", planet: "행성" };
+const WORLD_LABEL: Record<string, string> = { tree: "나무", constellation: "별자리", planet: "행성", color: "색모음집" };
 
 export default async function RoomPage({ params }: { params: Promise<{ userId: string }> }) {
   const { userId } = await params;
@@ -25,6 +26,7 @@ export default async function RoomPage({ params }: { params: Promise<{ userId: s
 
   const isMe = user.id === userId;
   const unlockedItems = ITEMS.filter((item) => item.isUnlocked(stats));
+  const discoveredColors = new Set(unlockedItems.map((item) => pickColorIndex(item.id)));
 
   return (
     <div className="flex flex-col gap-5 pt-2">
@@ -44,6 +46,31 @@ export default async function RoomPage({ params }: { params: Promise<{ userId: s
       </div>
 
       <WorldView worldType={profile.world_type} itemIds={unlockedItems.map((item) => item.id)} />
+
+      {profile.world_type === "color" && (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-sm font-medium text-neutral-500">
+            🎨 색 도감 · {discoveredColors.size}/{COLORS.length}
+          </h2>
+          <ul className="flex flex-col gap-2">
+            {COLORS.map((c, i) => {
+              const found = discoveredColors.has(i);
+              return (
+                <li key={c.name} className="flex items-center gap-3 rounded-2xl bg-card px-3.5 py-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                  <span
+                    className="h-9 w-9 shrink-0 rounded-xl"
+                    style={{ background: found ? c.hex : "#e5e5e5", boxShadow: "inset 0 -2px 4px rgba(0,0,0,0.08)" }}
+                  />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-neutral-700">{found ? c.name : "???"}</p>
+                    <p className="truncate text-xs text-neutral-400">{found ? `${c.meaning} · ${c.like}` : "아직 발견하지 못했어요"}</p>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       <section>
         <h2 className="mb-2.5 text-sm font-medium text-neutral-500">모은 아이템 · {unlockedItems.length}</h2>

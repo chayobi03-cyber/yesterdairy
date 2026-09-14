@@ -7,6 +7,7 @@ const WORLDS = [
   { value: "tree", emoji: "🌳", label: "나무" },
   { value: "constellation", emoji: "🌌", label: "별자리" },
   { value: "planet", emoji: "🪐", label: "행성" },
+  { value: "color", emoji: "🎨", label: "색모음집" },
 ] as const;
 
 export function WorldSection({ currentWorld }: { currentWorld: string }) {
