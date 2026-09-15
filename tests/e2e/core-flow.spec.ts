@@ -50,13 +50,26 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     await page.waitForURL((url) => !url.pathname.includes("/onboarding"), { timeout: 10_000 });
   });
 
-  await step("capture today's color from the home screen", /\/$/, async () => {
-    await expect(page.getByText("오늘의 색 찍기")).toBeVisible();
-    await page.locator('input[type="file"]').setInputFiles("tests/e2e/fixtures/test-photo.png");
-    await expect(page.getByText("오늘의 색", { exact: true })).toBeVisible();
-    // retaking today's color should overwrite, not duplicate, the entry
-    await page.locator('input[type="file"]').setInputFiles("tests/e2e/fixtures/test-photo.png");
-    await expect(page.getByText("오늘의 색", { exact: true })).toBeVisible();
+  await step("hunt today's mission color with the camera", /\/$/, async () => {
+    await expect(page.getByRole("link", { name: /오늘의 미션/ })).toBeVisible();
+    await page.getByRole("link", { name: /오늘의 미션/ }).click();
+    await page.waitForURL("**/colors/capture");
+
+    // camera runs on Chromium's fake video device (see playwright.config.ts)
+    await expect(page.getByText("미션")).toBeVisible();
+    await expect(page.getByText(/% 일치/)).toBeVisible();
+    await page.getByRole("button", { name: "채집하기" }).click();
+    await page.waitForURL("/");
+    await expect(page.getByText(/오늘의 색 ·/)).toBeVisible();
+  });
+
+  await step("today's captured color shows up in the color collection calendar", /\/$/, async () => {
+    await page.getByText("🎨 색 컬렉션 보러가기").click();
+    await page.waitForURL("**/colors");
+    const todayISO = new Date().toLocaleDateString("sv-SE");
+    const day = Number(todayISO.slice(8, 10));
+    await expect(page.getByText(String(day), { exact: true })).toBeVisible();
+    await page.goto("/");
   });
 
   await step("bottom nav stays at the simplified 5 tabs", /\/$/, async () => {

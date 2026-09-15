@@ -60,3 +60,13 @@
   크게 늘려서 체감 속도에 영향을 줄 수 있다. RLS 정책을 고칠 때는 항상
   owner/family 권한 범위가 그대로인지 기존 E2E(특히 프라이버시 경계,
   storage RLS 테스트)로 재검증할 것.
+- **"랜덤처럼 보이지만 실제로는 랜덤이 아닌" 것도 원칙을 지킨다**: "오늘의
+  미션 색"은 레퍼런스 앱에서 "랜덤"이라고 부르지만, `lib/color-names.ts`의
+  `todayMission()`은 날짜를 해시해서 고른다 — 매일 다르게 느껴지지만 같은
+  날엔 가족 모두에게 같은 미션이 뜨고, 재현 가능하다. 겉보기엔 랜덤인
+  레퍼런스 기능을 그대로 베낄 때도 "결정론적 해금만" 원칙에 맞게 변형할 것.
+- **getUserMedia(카메라)는 CI에서 fake 디바이스로 테스트한다**:
+  `playwright.config.ts`의 chromium 프로젝트에 `--use-fake-ui-for-media-stream`
+  `--use-fake-device-for-media-stream` 두 플래그를 켜두면 카메라 권한
+  프롬프트를 자동 수락하고 합성 영상을 흘려보내줘서, 실제 카메라 없는
+  CI 러너에서도 getUserMedia 플로우를 헤드리스로 검증할 수 있다.

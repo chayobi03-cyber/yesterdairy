@@ -6,7 +6,7 @@ import { categoryMeta } from "@/lib/categories";
 import { ITEMS } from "@/lib/items";
 import { getItemStats } from "@/lib/get-item-stats";
 import { getTodayISO } from "@/lib/today";
-import { DailyColorCapture } from "./daily-color-capture";
+import { todayMission } from "@/lib/color-names";
 
 function isoDaysAgo(todayISO: string, days: number): string {
   const d = new Date(`${todayISO}T12:00:00`);
@@ -36,12 +36,18 @@ export default async function HomePage() {
     getItemStats(supabase, user.id),
     // No .eq("user_id", ...) -- RLS already scopes daily_colors to the
     // caller's own rows (it has no family-read policy at all).
-    supabase.from("daily_colors").select("color_date, hex").gte("color_date", weekAgo).lte("color_date", today),
+    supabase
+      .from("daily_colors")
+      .select("color_date, hex, name, mission_hex, mission_name, match_percent")
+      .gte("color_date", weekAgo)
+      .lte("color_date", today),
   ]);
 
   const unlockedItems = ITEMS.filter((item) => item.isUnlocked(stats));
-  const colorByDate = new Map((recentColors ?? []).map((c) => [c.color_date, c.hex]));
+  const colorByDate = new Map((recentColors ?? []).map((c) => [c.color_date, c]));
   const last7Days = Array.from({ length: 7 }, (_, i) => isoDaysAgo(today, 6 - i));
+  const todayColor = colorByDate.get(today) ?? null;
+  const mission = todayMission(today);
 
   return (
     <div className="flex flex-col gap-6 pt-2">
@@ -54,23 +60,54 @@ export default async function HomePage() {
         </h1>
       </div>
 
-      <DailyColorCapture initialHex={colorByDate.get(today) ?? null} />
+      <Link
+        href="/colors/capture"
+        className="flex items-center gap-3 rounded-2xl border border-line bg-card p-4"
+      >
+        {todayColor ? (
+          <span
+            className="h-11 w-11 shrink-0 rounded-full border border-line"
+            style={{ background: todayColor.hex }}
+          />
+        ) : (
+          <span
+            className="h-11 w-11 shrink-0 rounded-full border border-line"
+            style={{ background: mission.hex }}
+          />
+        )}
+        <span className="flex-1">
+          <span className="block text-sm font-medium">
+            {todayColor ? `오늘의 색 · ${todayColor.name}` : `오늘의 미션 · ${mission.name}`}
+          </span>
+          <span className="block text-xs text-neutral-400">
+            {todayColor
+              ? typeof todayColor.match_percent === "number"
+                ? `미션과 ${todayColor.match_percent}% 일치 · 다시 채집하려면 탭하세요`
+                : "다시 채집하려면 탭하세요"
+              : "이 색을 찾아서 채집하러 가볼까요?"}
+          </span>
+        </span>
+      </Link>
 
       {colorByDate.size > 0 && (
         <div className="flex items-center justify-between px-1">
           {last7Days.map((iso) => {
-            const hex = colorByDate.get(iso);
+            const c = colorByDate.get(iso);
             return (
               <span
                 key={iso}
-                title={iso}
-                className={`h-3 w-3 rounded-full ${hex ? "" : "border border-dashed border-line"}`}
-                style={hex ? { background: hex } : undefined}
+                title={c ? `${c.name} · ${c.hex}` : iso}
+                className={`h-3 w-3 rounded-full ${c ? "" : "border border-dashed border-line"}`}
+                style={c ? { background: c.hex } : undefined}
               />
             );
           })}
         </div>
       )}
+
+      <Link href="/colors" className="text-center text-xs text-accent-600 underline">
+        🎨 색 컬렉션 보러가기
+      </Link>
 
       <Link
         href="/write"

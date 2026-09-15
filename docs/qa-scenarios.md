@@ -9,7 +9,8 @@ Supabase 프로젝트에 대해 CI에서 도는 하나의 긴 플로우 테스�
 |---|---|---|
 | 회원가입 | 온보딩으로 이동 | "sign up" |
 | 가족 생성 | 온보딩을 벗어나 홈으로 이동 (과거 리다이렉트 버그 회귀 방지) | "create family" |
-| **오늘의 색 찍기** | 사진을 고르면 그 사진의 평균 색이 홈 화면에 바로 표시되고, 같은 날 다시 찍으면 새 행을 만들지 않고 덮어씀 | "capture today's color from the home screen" |
+| **오늘의 미션 색 채집 (카메라)** | 홈 화면 미션 카드 → 카메라로 실시간 매치율(%)이 보이고, 채집하면 홈에 결과가 반영됨 | "hunt today's mission color with the camera" |
+| **색 컬렉션 캘린더** | 채집한 날짜의 달력 칸이 그 색으로 채워짐 | "today's captured color shows up in the color collection calendar" |
 | 하단 탭바 구성 | 오늘/달력/가족/앨범/설정 5개만, "기록" 탭 없음 | "bottom nav stays at the simplified 5 tabs" |
 | 기록 작성 (가족 공개) | 홈 화면에 즉시 표시 | "write a family-visible entry" |
 | **카테고리별 오늘의 질문** | 카테고리를 바꾸면 그 카테고리에 맞는 질문(고정 목록에서 날짜+카테고리로 결정론적 선택)으로 바뀜 | "write a family-visible entry" 안의 프롬프트 전환 체크 |

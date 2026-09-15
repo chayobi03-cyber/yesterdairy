@@ -349,13 +349,33 @@ export async function saveDailyColor(formData: FormData) {
 
   const hex = String(formData.get("hex") ?? "");
   const colorDate = String(formData.get("color_date") ?? "");
+  const name = String(formData.get("name") ?? "") || null;
+  const missionHex = String(formData.get("mission_hex") ?? "") || null;
+  const missionName = String(formData.get("mission_name") ?? "") || null;
+  const matchPercentRaw = formData.get("match_percent");
+  const matchPercent = matchPercentRaw ? Number(matchPercentRaw) : null;
+
   if (!HEX_RE.test(hex)) throw new Error("잘못된 색상 값이에요.");
   if (!DATE_RE.test(colorDate)) throw new Error("잘못된 날짜예요.");
+  if (missionHex && !HEX_RE.test(missionHex)) throw new Error("잘못된 미션 색상 값이에요.");
+  if (matchPercent !== null && (!Number.isInteger(matchPercent) || matchPercent < 0 || matchPercent > 100)) {
+    throw new Error("잘못된 매치율 값이에요.");
+  }
 
-  const { error } = await supabase
-    .from("daily_colors")
-    .upsert({ user_id: user.id, color_date: colorDate, hex }, { onConflict: "user_id,color_date" });
+  const { error } = await supabase.from("daily_colors").upsert(
+    {
+      user_id: user.id,
+      color_date: colorDate,
+      hex,
+      name,
+      mission_hex: missionHex,
+      mission_name: missionName,
+      match_percent: matchPercent,
+    },
+    { onConflict: "user_id,color_date" },
+  );
   if (error) throw new Error(error.message);
 
   revalidatePath("/");
+  revalidatePath("/colors");
 }

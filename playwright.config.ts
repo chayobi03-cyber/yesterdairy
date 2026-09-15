@@ -22,7 +22,21 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        // The color-hunt camera (getUserMedia) needs a real permission
+        // grant + video source to test headlessly. These two flags make
+        // Chromium auto-accept the camera prompt and feed it a synthetic
+        // video pattern instead of prompting for/using a real webcam.
+        launchOptions: {
+          args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"],
+        },
+      },
+    },
+  ],
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
     : {
