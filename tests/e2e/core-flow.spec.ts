@@ -50,6 +50,15 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     await page.waitForURL((url) => !url.pathname.includes("/onboarding"), { timeout: 10_000 });
   });
 
+  await step("capture today's color from the home screen", /\/$/, async () => {
+    await expect(page.getByText("오늘의 색 찍기")).toBeVisible();
+    await page.locator('input[type="file"]').setInputFiles("tests/e2e/fixtures/test-photo.png");
+    await expect(page.getByText("오늘의 색", { exact: true })).toBeVisible();
+    // retaking today's color should overwrite, not duplicate, the entry
+    await page.locator('input[type="file"]').setInputFiles("tests/e2e/fixtures/test-photo.png");
+    await expect(page.getByText("오늘의 색", { exact: true })).toBeVisible();
+  });
+
   await step("bottom nav stays at the simplified 5 tabs", /\/$/, async () => {
     const nav = page.locator("nav");
     await expect(nav.getByRole("link", { name: "오늘" })).toBeVisible();

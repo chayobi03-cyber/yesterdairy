@@ -6,6 +6,13 @@ import { categoryMeta } from "@/lib/categories";
 import { ITEMS } from "@/lib/items";
 import { getItemStats } from "@/lib/get-item-stats";
 import { getTodayISO } from "@/lib/today";
+import { DailyColorCapture } from "./daily-color-capture";
+
+function isoDaysAgo(todayISO: string, days: number): string {
+  const d = new Date(`${todayISO}T12:00:00`);
+  d.setDate(d.getDate() - days);
+  return d.toLocaleDateString("sv-SE");
+}
 
 export default async function HomePage() {
   const user = await getCurrentUser();
@@ -13,10 +20,11 @@ export default async function HomePage() {
 
   const supabase = await createClient();
   const today = await getTodayISO();
+  const weekAgo = isoDaysAgo(today, 6);
 
   // None of these depend on each other — run them concurrently instead of
   // paying for round trip after round trip.
-  const [{ data: profile }, { data: todayEntries }, stats] = await Promise.all([
+  const [{ data: profile }, { data: todayEntries }, stats, { data: recentColors }] = await Promise.all([
     supabase.from("profiles").select("name").eq("id", user.id).single(),
     supabase
       .from("diary_entries")
@@ -26,9 +34,14 @@ export default async function HomePage() {
       .is("deleted_at", null)
       .order("created_at", { ascending: false }),
     getItemStats(supabase, user.id),
+    // No .eq("user_id", ...) -- RLS already scopes daily_colors to the
+    // caller's own rows (it has no family-read policy at all).
+    supabase.from("daily_colors").select("color_date, hex").gte("color_date", weekAgo).lte("color_date", today),
   ]);
 
   const unlockedItems = ITEMS.filter((item) => item.isUnlocked(stats));
+  const colorByDate = new Map((recentColors ?? []).map((c) => [c.color_date, c.hex]));
+  const last7Days = Array.from({ length: 7 }, (_, i) => isoDaysAgo(today, 6 - i));
 
   return (
     <div className="flex flex-col gap-6 pt-2">
@@ -40,6 +53,24 @@ export default async function HomePage() {
           {profile?.name ?? "안녕"}, 오늘 기억나는 순간 하나만 골라볼래?
         </h1>
       </div>
+
+      <DailyColorCapture initialHex={colorByDate.get(today) ?? null} />
+
+      {colorByDate.size > 0 && (
+        <div className="flex items-center justify-between px-1">
+          {last7Days.map((iso) => {
+            const hex = colorByDate.get(iso);
+            return (
+              <span
+                key={iso}
+                title={iso}
+                className={`h-3 w-3 rounded-full ${hex ? "" : "border border-dashed border-line"}`}
+                style={hex ? { background: hex } : undefined}
+              />
+            );
+          })}
+        </div>
+      )}
 
       <Link
         href="/write"

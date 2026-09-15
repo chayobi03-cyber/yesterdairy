@@ -336,3 +336,26 @@ export async function deleteComment(commentId: string) {
 
   revalidatePath("/family");
 }
+
+const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+export async function saveDailyColor(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const hex = String(formData.get("hex") ?? "");
+  const colorDate = String(formData.get("color_date") ?? "");
+  if (!HEX_RE.test(hex)) throw new Error("잘못된 색상 값이에요.");
+  if (!DATE_RE.test(colorDate)) throw new Error("잘못된 날짜예요.");
+
+  const { error } = await supabase
+    .from("daily_colors")
+    .upsert({ user_id: user.id, color_date: colorDate, hex }, { onConflict: "user_id,color_date" });
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/");
+}
