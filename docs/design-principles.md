@@ -49,3 +49,14 @@
   `<LocalDateSync/>`가 뷰어의 브라우저 시계로 `local_date` 쿠키를 계속
   맞춰두고, 서버는 그 쿠키를 읽는다. 새로 "오늘"이 필요한 화면을 만들 때
   `new Date().toLocaleDateString(...)`을 서버 쪽에 직접 쓰지 말 것.
+- **"앱이 느리다"는 먼저 실제 근거로 확인한다**: 추측으로 코드부터 고치지
+  말고 `mcp__Supabase__get_advisors`(performance/security)와
+  `mcp__Supabase__query_logs`부터 본다. 이번에 확인해보니 (1) `diary_entries`
+  /`events`/`goals`/`media`에 "owner full access"(FOR ALL) + "family can
+  read shared"(FOR SELECT) 두 개의 permissive 정책이 걸려 있어서 SELECT마다
+  정책이 두 번 평가되고 있었고 (마이그레이션 0011에서 SELECT 하나로 통합),
+  (2) 실사용자는 2명뿐인데 E2E 테스트가 운영 Supabase 프로젝트를 그대로
+  씀 — 개발/테스트를 많이 한 날은 `e2e_` 계정 가입·로그인이 auth 로그를
+  크게 늘려서 체감 속도에 영향을 줄 수 있다. RLS 정책을 고칠 때는 항상
+  owner/family 권한 범위가 그대로인지 기존 E2E(특히 프라이버시 경계,
+  storage RLS 테스트)로 재검증할 것.
