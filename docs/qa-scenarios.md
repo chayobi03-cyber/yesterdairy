@@ -24,7 +24,11 @@ Supabase 프로젝트에 대해 CI에서 도는 하나의 긴 플로우 테스�
 | 목표 추가 (가족 공개) | 목록에 즉시 표시 | "add a family-visible goal" |
 | 가족 피드 리액션 | 클릭 시 카운트 증가 | "entry + reaction show up on the family feed" |
 | 댓글 작성/삭제 | 작성 즉시 보이고, 삭제하면 사라짐 | "add and delete a comment..." |
-| 초대 코드로 합류 | 새 회원이 같은 가족으로 들어옴 | "second family member joins..." |
+| 초대 코드로 합류 (아이 역할) | 새 회원이 "아이" 역할로 같은 가족에 들어오고, 그렇게 표시됨 | "second family member joins..." |
+| **가족 공개 → 비공개 전환 시 리액션도 같이 숨김** | 기록을 다시 비공개로 바꾸면 그 기록에 달린 리액션까지 가족 피드에서 완전히 사라짐 | "switch the family entry back to private" + "second member no longer sees..." |
+| **아이디 중복 가입 에러** | 이미 쓰이는 아이디로 가입하면 명확한 에러 메시지가 뜨고 `/signup`에 그대로 머무름 | `tests/e2e/core-flow.spec.ts`의 별도 테스트 "signing up with a username that's already taken..." |
+| **카메라 권한 거부 시 대체 화면** | getUserMedia가 거부되면 에러 메시지가 뜨고 채집 버튼이 비활성화됨 (크래시 없음) | `tests/e2e/color-hunt-camera-denied.spec.ts` |
+| **휴대폰 화면 폭에서 가로 스크롤 없음** | 홈/기록/달력/가족/앨범/색 컬렉션/설정 각 화면이 iPhone 13 폭에서 가로로 넘치지 않음, 하단 탭바 5개 모두 보임 | `tests/e2e/mobile-responsive.spec.ts` |
 | **앨범 — 가족 사진 (storage RLS)** | 다른 가족 구성원도 가족 공개 사진을 볼 수 있음 (media 테이블 권한 + storage.objects 권한 둘 다 필요) | "second family member..." 안의 앨범 이동 |
 | 가족 피드 — 다른 사람 리액션 | 각자 독립적으로 카운트됨 | "second member can react too..." |
 | 목표 응원 | 다른 사람이 응원하면 카운트 증가 | "and can cheer..." |

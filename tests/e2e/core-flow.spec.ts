@@ -199,6 +199,9 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
 
       await page2.getByRole("button", { name: "초대 코드로 참여하기" }).click();
       await page2.getByPlaceholder("초대 코드 (6자리)").fill(inviteCode);
+      // pick "아이" instead of leaving the default "부모" -- exercises the
+      // other role, since a real family isn't all parents.
+      await page2.getByText("아이", { exact: true }).click();
       await page2.getByRole("button", { name: "참여하기" }).click();
       await page2.waitForURL((url) => !url.pathname.includes("/onboarding"), { timeout: 10_000 });
       await expect(page2).toHaveURL("/");
@@ -217,12 +220,12 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
       await expect(page2.locator("img")).toHaveCount(1);
 
       await page2.goto("/family");
-      // both members should be listed by nickname (role is "부모" for both
-      // in this test; matching the full "name · role" text avoids username2
-      // — which is literally "<username>_2" — accidentally substring-matching
-      // username's badge too)
+      // both members should be listed by nickname · role (first member is
+      // "부모", second picked "아이" above) -- matching the full text avoids
+      // username2 — which is literally "<username>_2" — accidentally
+      // substring-matching username's badge too)
       await expect(page2.getByText(`${username} · 부모`)).toBeVisible();
-      await expect(page2.getByText(`${username2} · 부모`)).toBeVisible();
+      await expect(page2.getByText(`${username2} · 아이`)).toBeVisible();
 
       // second member can react too, independently of the first member's reaction
       await page2.getByRole("button", { name: /^🌱/ }).click();
@@ -234,12 +237,40 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
       await expect(page2.getByRole("button", { name: /^👏 1/ })).toBeVisible();
 
       // visiting the first member's room shows their shared goal too
-      await page2.getByRole("link", { name: `${username} · 부모` }).click();
+      await page2.getByRole("link", { name: `${username} · 부모`, exact: true }).click();
       await page2.waitForURL(/\/room\//);
       await expect(page2.locator("h1")).toContainText("님의 공간");
       await expect(page2.getByText(`E2E 목표 ${runId}`)).toBeVisible();
     } finally {
       await context2.close();
+    }
+  });
+
+  await step("switch the family entry back to private", /\/$/, async () => {
+    await page.getByRole("link", { name: "수정" }).click();
+    await page.waitForURL(/\/write\//);
+    await page.locator('button[type="button"]').click(); // flip family -> private
+    await page.getByRole("button", { name: "수정하기" }).click();
+    await page.waitForURL("/");
+  });
+
+  await test.step("second member no longer sees the now-private entry or its reaction", async () => {
+    const context3 = await browser.newContext();
+    const page3 = await context3.newPage();
+    try {
+      await page3.goto("/login");
+      await page3.getByPlaceholder("아이디").fill(username2);
+      await page3.getByPlaceholder("비밀번호").fill(password2);
+      await page3.getByRole("button", { name: "로그인" }).click();
+      await page3.waitForURL("/");
+
+      await page3.goto("/family");
+      // switching visibility back to private must pull the entry (and
+      // anything hanging off it, like the second member's own reaction)
+      // out of the family feed entirely, not just hide new access to it.
+      await expect(page3.getByText(`수정된 테스트 기록 ${runId}`)).not.toBeVisible();
+    } finally {
+      await context3.close();
     }
   });
 
@@ -285,4 +316,17 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     // Should land on Home directly, not get bounced to onboarding again.
     await page.waitForURL("/");
   });
+});
+
+test("signing up with a username that's already taken shows a clear error", async ({ page }) => {
+  // Reuses `username` from the test above -- serial mode guarantees that
+  // account already exists by the time this runs, so no extra signup is
+  // needed just to set up the duplicate.
+  await page.goto("/signup");
+  await page.getByPlaceholder("아이디 (로그인용)").fill(username);
+  await page.getByPlaceholder(/비밀번호 \(6자 이상\)/).fill("AnotherPass123!");
+  await page.getByRole("button", { name: "가입하기" }).click();
+  await expect(page.getByText("이 아이디는 이미 사용 중이에요. 다른 아이디를 써볼래요?")).toBeVisible();
+  // must not have navigated away or silently created a session
+  await expect(page).toHaveURL(/\/signup$/);
 });
