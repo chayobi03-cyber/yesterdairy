@@ -247,6 +247,9 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
   });
 
   await step("switch the family entry back to private", /\/$/, async () => {
+    // the previous step (via test.step, not the URL-checked `step` helper)
+    // left `page` on /family -- go home first, where the "수정" link lives.
+    await page.goto("/");
     await page.getByRole("link", { name: "수정" }).click();
     await page.waitForURL(/\/write\//);
     await page.locator('button[type="button"]').click(); // flip family -> private

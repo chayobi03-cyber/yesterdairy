@@ -7,7 +7,12 @@ import { test, expect, devices } from "@playwright/test";
 // narrow, cheap check -- one signup, a handful of key screens -- purely for
 // "does anything overflow horizontally at real phone width," which desktop
 // viewport testing can't catch on its own.
-test.use({ ...devices["iPhone 13"] });
+//
+// Pixel 7, not an iPhone device -- Playwright's iPhone descriptors default
+// to WebKit as the engine, and CI only installs Chromium. Pixel 7's
+// dimensions are close enough (412x915 vs. iPhone 13's 390x844) to catch
+// the same class of horizontal-overflow bugs.
+test.use({ ...devices["Pixel 7"] });
 
 const runId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const username = `e2e_mobile_${runId}`;

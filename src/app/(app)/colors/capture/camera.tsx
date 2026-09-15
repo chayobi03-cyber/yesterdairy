@@ -99,7 +99,7 @@ export function ColorHuntCamera({
         <button
           type="button"
           onClick={() => router.back()}
-          className="absolute left-4 top-4 rounded-full bg-black/50 px-4 py-2 text-sm"
+          className="absolute left-4 top-4 z-10 rounded-full bg-black/50 px-4 py-2 text-sm"
         >
           닫기
         </button>
