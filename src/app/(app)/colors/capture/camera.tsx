@@ -16,10 +16,29 @@ export function ColorHuntCamera({
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const [currentHex, setCurrentHex] = useState("#cccccc");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [markerSize, setMarkerSize] = useState(0);
+
+  // The video element is rendered at exactly the viewport's box (object-cover
+  // fills w-full h-full), so the crop this component samples from -- the
+  // center square whose side is 30% of the frame's shorter dimension -- maps
+  // 1:1 onto 30% of the shorter side of this box. Track it with a
+  // ResizeObserver so the on-screen marker always matches what's sampled,
+  // not just a fixed guess at phone-vs-tablet layout.
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setMarkerSize(Math.min(width, height) * 0.3);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -93,9 +112,20 @@ export function ColorHuntCamera({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black text-white">
-      <div className="relative flex-1 overflow-hidden">
+      <div ref={viewportRef} className="relative flex-1 overflow-hidden">
         <video ref={videoRef} playsInline muted className="h-full w-full object-cover" />
         <canvas ref={canvasRef} className="hidden" />
+        {markerSize > 0 && !error && (
+          <div
+            aria-hidden
+            data-testid="color-sample-marker"
+            className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-md border-2 border-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.15)]"
+            style={{ width: markerSize, height: markerSize }}
+          >
+            <span className="absolute top-1/2 left-1/2 h-3 w-px -translate-x-1/2 -translate-y-1/2 bg-white/90" />
+            <span className="absolute top-1/2 left-1/2 h-px w-3 -translate-x-1/2 -translate-y-1/2 bg-white/90" />
+          </div>
+        )}
         <button
           type="button"
           onClick={() => router.back()}

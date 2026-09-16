@@ -30,6 +30,9 @@ Supabase 프로젝트에 대해 CI에서 도는 하나의 긴 플로우 테스�
 | **카메라 권한 거부 시 대체 화면** | getUserMedia가 거부되면 에러 메시지가 뜨고 채집 버튼이 비활성화됨 (크래시 없음) | `tests/e2e/color-hunt-camera-denied.spec.ts` |
 | **휴대폰 화면 폭에서 가로 스크롤 없음** | 홈/기록/달력/가족/앨범/색 컬렉션/설정 각 화면이 iPhone 13 폭에서 가로로 넘치지 않음, 하단 탭바 5개 모두 보임 | `tests/e2e/mobile-responsive.spec.ts` |
 | **앨범 — 가족 사진 (storage RLS)** | 다른 가족 구성원도 가족 공개 사진을 볼 수 있음 (media 테이블 권한 + storage.objects 권한 둘 다 필요) | "second family member..." 안의 앨범 이동 |
+| **앨범 사진 확대/축소** | 사진을 탭하면 전체화면 뷰어가 열리고, 확대/축소 버튼(핀치 줌도 지원)으로 배율이 바뀌며, 더블탭으로 원래 배율(100%)로 돌아감 | `tests/e2e/album-zoom.spec.ts` |
+| **콜라주 만들기** | 앨범에 사진이 4장 이상이면 "콜라주 만들기" 링크가 보이고, 레이아웃(2x2/3x3)을 고르고 그만큼 사진을 선택하면 한 장의 이미지로 합쳐져서 다운로드할 수 있음 | `tests/e2e/collage.spec.ts` |
+| **오늘의 색 채집 지점 표시** | 카메라 화면에 실제로 색을 뽑는 정사각형 영역(뷰파인더)이 십자선과 함께 표시됨 | "hunt today's mission color with the camera" 안의 마커 체크 |
 | 가족 피드 — 다른 사람 리액션 | 각자 독립적으로 카운트됨 | "second member can react too..." |
 | 목표 응원 | 다른 사람이 응원하면 카운트 증가 | "and can cheer..." |
 | 다른 사람 방(room) 보기 | 그 사람이 공개한 목표/아이템만 보임 | "visiting the first member's room..." |

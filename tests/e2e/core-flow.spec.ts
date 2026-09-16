@@ -58,6 +58,8 @@ test("sign up -> create family -> write entry -> family feed -> settings -> re-l
     // camera runs on Chromium's fake video device (see playwright.config.ts)
     await expect(page.getByText("미션")).toBeVisible();
     await expect(page.getByText(/% 일치/)).toBeVisible();
+    // the viewfinder marker shows exactly where the color is sampled from
+    await expect(page.getByTestId("color-sample-marker")).toBeVisible();
     await page.getByRole("button", { name: "채집하기" }).click();
     await page.waitForURL("/");
     await expect(page.getByText(/오늘의 색 ·/)).toBeVisible();
