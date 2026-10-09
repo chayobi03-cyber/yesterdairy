@@ -70,3 +70,7 @@
   `--use-fake-device-for-media-stream` 두 플래그를 켜두면 카메라 권한
   프롬프트를 자동 수락하고 합성 영상을 흘려보내줘서, 실제 카메라 없는
   CI 러너에서도 getUserMedia 플로우를 헤드리스로 검증할 수 있다.
+- **지도는 무료 OSM 타일 + Leaflet만**: 여행 지도(`trip-map.tsx`)는 OpenStreetMap
+  공개 타일을 쓴다 — 키·요금은 없지만 사용정책상 저트래픽(가족 규모)에서만 적합하고
+  "© OpenStreetMap contributors" 표기가 필수다. 트래픽이 커지거나 상업적으로 쓰게
+  되면 타일 제공자를 바꿔야 한다. 핀·동선은 divIcon/polyline(CSS)만 쓴다.

@@ -7,14 +7,25 @@ import type { Place, PlanItem } from "./types";
 export type DayOp =
   | { type: "toggle"; itemId: string }
   | { type: "move"; index: number; dir: 1 | -1 }
+  // 드래그로 한 번에 옮기기. 한 칸씩 옮기는 move를 반복하므로 필수 방문지끼리 추월하지 못한다.
+  | { type: "moveTo"; from: number; to: number }
   | { type: "dur"; itemId: string; delta: number }
-  | { type: "add"; placeId: string }
-  | { type: "addRest"; title: string }
+  // id: 화면이 먼저 반영(낙관적 업데이트)할 때 서버와 같은 항목 id를 쓰도록 호출자가 정한다
+  | { type: "add"; placeId: string; id?: string }
+  | { type: "addRest"; title: string; id?: string }
   | { type: "remove"; itemId: string };
 
 export type OpResult = { ok: true; items: PlanItem[] } | { ok: false; error: string };
 
 export const MAX_ITEMS_PER_DAY = 60;
+export const ID_RE = /^[A-Za-z0-9_-]{1,80}$/;
+
+// 호출자가 정한 id는 형식과 중복을 검사하고, 없으면 새로 만든다
+function newItemId(requested: string | undefined, existing: PlanItem[]): { ok: true; id: string } | { ok: false; error: string } {
+  if (requested == null) return { ok: true, id: uid("it") };
+  if (!ID_RE.test(requested) || existing.some((i) => i.id === requested)) return { ok: false, error: "잘못된 항목 id예요." };
+  return { ok: true, id: requested };
+}
 
 export function applyDayOp(
   current: PlanItem[],
@@ -34,6 +45,19 @@ export function applyDayOp(
       const r = move(items, op.index, op.dir, ctx.mandatory);
       return r.ok ? { ok: true, items: r.items } : { ok: false, error: r.reason };
     }
+    case "moveTo": {
+      if (![op.from, op.to].every((n) => Number.isInteger(n) && n >= 0 && n < items.length)) return { ok: false, error: "더 이상 이동할 수 없어요." };
+      let cur = items;
+      let at = op.from;
+      const dir: 1 | -1 = op.to > op.from ? 1 : -1;
+      while (at !== op.to) {
+        const r = move(cur, at, dir, ctx.mandatory);
+        if (!r.ok) return { ok: false, error: r.reason };
+        cur = r.items;
+        at += dir;
+      }
+      return { ok: true, items: cur };
+    }
     case "dur": {
       const it = items.find((i) => i.id === op.itemId);
       if (!it) return { ok: false, error: "항목을 찾을 수 없어요." };
@@ -44,14 +68,18 @@ export function applyDayOp(
     case "add": {
       if (!ctx.places.some((p) => p.id === op.placeId)) return { ok: false, error: "알 수 없는 장소예요." };
       if (items.length >= MAX_ITEMS_PER_DAY) return { ok: false, error: "하루에 넣을 수 있는 항목이 가득 찼어요." };
-      items.push({ id: uid("it"), p: op.placeId });
+      const nid = newItemId(op.id, items);
+      if (!nid.ok) return nid;
+      items.push({ id: nid.id, p: op.placeId });
       return { ok: true, items };
     }
     case "addRest": {
       const title = op.title.trim().slice(0, 60);
       if (!title) return { ok: false, error: "일정 이름을 입력해주세요." };
       if (items.length >= MAX_ITEMS_PER_DAY) return { ok: false, error: "하루에 넣을 수 있는 항목이 가득 찼어요." };
-      items.push({ id: uid("it"), rest: title, dur: 30 });
+      const nid = newItemId(op.id, items);
+      if (!nid.ok) return nid;
+      items.push({ id: nid.id, rest: title, dur: 30 });
       return { ok: true, items };
     }
     case "remove": {

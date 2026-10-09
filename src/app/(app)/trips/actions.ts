@@ -141,7 +141,6 @@ export async function updateProgress(tripId: string, itemId: string, patch: Prog
     if (attempt === MAX_CAS_ATTEMPTS - 1) return { ok: false, error: CONFLICT_MESSAGE };
   }
 
-  revalidatePath(`/trips/${tripId}`);
   return { ok: true };
 }
 
@@ -162,7 +161,6 @@ export async function editDay(tripId: string, planId: string, day: number, op: D
   if (op.type === "reset") {
     const { error } = await supabase.from("trip_day_items").delete().eq("trip_id", tripId).eq("plan_id", planId).eq("day", day);
     if (error) return { ok: false, error: error.message };
-    revalidatePath(`/trips/${tripId}`);
     return { ok: true };
   }
 
@@ -204,18 +202,22 @@ export async function editDay(tripId: string, planId: string, day: number, op: D
     if (attempt === MAX_CAS_ATTEMPTS - 1) return { ok: false, error: CONFLICT_MESSAGE };
   }
 
-  revalidatePath(`/trips/${tripId}`);
   return { ok: true };
 }
 
 /* ---------- 내 장소 ---------- */
 
-export async function addPlace(tripId: string, input: NewPlaceInput & { planId: string; day: number; addNow: boolean }): Promise<Result> {
+// placeId / itemId: 화면이 먼저 반영할 때 쓴 id를 그대로 받아 서버와 화면이 같은 id를 갖게 한다
+export async function addPlace(
+  tripId: string,
+  input: NewPlaceInput & { planId: string; day: number; addNow: boolean; placeId: string; itemId: string },
+): Promise<Result> {
   const c = await ctx();
   if (!c) return NOT_SIGNED_IN;
   const { supabase } = c;
 
-  const built = buildPlace(input);
+  if (!ID_RE.test(input.placeId) || !ID_RE.test(input.itemId)) return { ok: false, error: "잘못된 id예요." };
+  const built = buildPlace(input, input.placeId);
   if (!built.ok) return built;
 
   for (let attempt = 0; attempt < MAX_CAS_ATTEMPTS; attempt++) {
@@ -225,6 +227,7 @@ export async function addPlace(tripId: string, input: NewPlaceInput & { planId: 
 
     const def = row.def as TripDef;
     if (def.places.length >= MAX_PLACES) return { ok: false, error: `장소는 최대 ${MAX_PLACES}개까지 추가할 수 있어요.` };
+    if (def.places.some((p) => p.id === built.place.id)) return { ok: false, error: "이미 있는 장소 id예요." };
 
     const { data: updated, error } = await supabase
       .from("trips")
@@ -238,9 +241,8 @@ export async function addPlace(tripId: string, input: NewPlaceInput & { planId: 
   }
 
   if (input.addNow) {
-    const r = await editDay(tripId, input.planId, input.day, { type: "add", placeId: built.place.id });
+    const r = await editDay(tripId, input.planId, input.day, { type: "add", placeId: built.place.id, id: input.itemId });
     if (!r.ok) return { ok: false, error: `장소는 저장했지만 일정에 넣지 못했어요: ${r.error}` };
   }
-  revalidatePath(`/trips/${tripId}`);
   return { ok: true };
 }
