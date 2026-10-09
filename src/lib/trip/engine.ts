@@ -57,6 +57,10 @@ export function toMin(hhmm: string): number {
   return m ? Number(m[1]) * 60 + Number(m[2]) : 9 * 60;
 }
 
+// 고정 시각 형식 "HH:MM" (00:00~23:59)
+export const AT_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+export const validAt = (v: unknown): v is string => typeof v === "string" && AT_RE.test(v);
+
 export function fmt(min: number): string {
   const m = Math.max(0, Math.round(min));
   const h = Math.floor(m / 60) % 24;
@@ -71,6 +75,9 @@ export type Row = {
   start: number | null;
   end: number | null;
   travel: Travel | null;
+  // 고정 시각(at)보다 일찍 도착해 기다리는 분 / 늦게 도착한 분
+  wait: number;
+  late: number;
 };
 
 export function timeline(items: PlanItem[], places: Record<string, Place>, startTime: string): Row[] {
@@ -79,13 +86,22 @@ export function timeline(items: PlanItem[], places: Record<string, Place>, start
   return items.map((item) => {
     const place = item.p ? (places[item.p] ?? null) : null;
     const dur = Math.max(0, Number(item.dur ?? place?.dur ?? 30));
-    const row: Row = { item, place, dur, included: item.included !== false, start: null, end: null, travel: null };
+    const row: Row = { item, place, dur, included: item.included !== false, start: null, end: null, travel: null, wait: 0, late: 0 };
     if (row.included) {
       if (prev && place) {
         const tr = travel(prev, place);
         if (tr) {
           row.travel = tr;
           t += tr.min;
+        }
+      }
+      if (validAt(item.at)) {
+        const target = toMin(item.at);
+        if (t < target) {
+          row.wait = target - t;
+          t = target;
+        } else {
+          row.late = t - target;
         }
       }
       row.start = t;
@@ -188,6 +204,7 @@ export function validateTrip(t: unknown): string[] {
         for (const it of items ?? []) {
           if (!it.id) errs.push(`plans.${k} ${day}일차 항목에 id가 필요해요.`);
           if (it.p && !ids.has(it.p)) errs.push(`plans.${k}: 알 수 없는 장소 ${it.p}`);
+          if (it.at != null && !validAt(it.at)) errs.push(`plans.${k} ${day}일차 ${it.id}: at은 HH:MM 형식이어야 해요.`);
         }
       }
     }

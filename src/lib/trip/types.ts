@@ -17,7 +17,8 @@ export type Place = {
 };
 
 // 일정 항목: p = 장소 id, rest = 장소 없는 일정 이름
-export type PlanItem = { id: string; p?: string; rest?: string; dur?: number; included?: boolean };
+// at = 고정 시작 시각 "HH:MM" (이보다 일찍 도착하면 기다리고, 늦으면 "N분 늦음"으로 표시)
+export type PlanItem = { id: string; p?: string; rest?: string; dur?: number; included?: boolean; at?: string };
 
 export type TripDay = { n: number; label?: string; start: string };
 

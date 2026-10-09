@@ -1,7 +1,7 @@
 // 일차별 일정 편집의 순수 로직 (DB 비의존). 서버 액션은 "최신 데이터를 읽고 이 함수를
 // 적용해 저장"을 충돌 시 다시 시도하므로, 이 함수는 항상 입력 배열을 바꾸지 않고
 // 새 배열을 돌려준다.
-import { move, uid, validCoord } from "./engine";
+import { move, uid, validAt, validCoord } from "./engine";
 import type { Place, PlanItem } from "./types";
 
 export type DayOp =
@@ -10,6 +10,8 @@ export type DayOp =
   // 드래그로 한 번에 옮기기. 한 칸씩 옮기는 move를 반복하므로 필수 방문지끼리 추월하지 못한다.
   | { type: "moveTo"; from: number; to: number }
   | { type: "dur"; itemId: string; delta: number }
+  // 고정 시작 시각 지정/해제 (null이면 해제)
+  | { type: "setAt"; itemId: string; at: string | null }
   // id: 화면이 먼저 반영(낙관적 업데이트)할 때 서버와 같은 항목 id를 쓰도록 호출자가 정한다
   | { type: "add"; placeId: string; id?: string }
   | { type: "addRest"; title: string; id?: string }
@@ -63,6 +65,18 @@ export function applyDayOp(
       if (!it) return { ok: false, error: "항목을 찾을 수 없어요." };
       const base = it.dur ?? (it.p ? ctx.places.find((p) => p.id === it.p)?.dur : undefined) ?? 30;
       it.dur = Math.min(600, Math.max(5, base + Math.trunc(op.delta)));
+      return { ok: true, items };
+    }
+    case "setAt": {
+      const it = items.find((i) => i.id === op.itemId);
+      if (!it) return { ok: false, error: "항목을 찾을 수 없어요." };
+      if (op.at == null || op.at === "") {
+        delete it.at;
+      } else if (validAt(op.at)) {
+        it.at = op.at;
+      } else {
+        return { ok: false, error: "시각은 HH:MM 형식으로 입력해주세요." };
+      }
       return { ok: true, items };
     }
     case "add": {

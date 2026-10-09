@@ -5,12 +5,12 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { LEGEND, directionsUrl, hasCoord, routeUrl, uid } from "@/lib/trip/engine";
+import { LEGEND, directionsUrl, fmt, hasCoord, routeUrl, uid } from "@/lib/trip/engine";
 import type { DayOp } from "@/lib/trip/day-ops";
 import { useDragReorder } from "@/lib/trip/use-drag-reorder";
 import { useTripState } from "@/lib/trip/use-trip-state";
 import {
-  buildRows, candidatePins, currentStopId, dayLabel, dayStats, excludedMandatory, nextStopId, routeStops, totalCost,
+  buildRows, candidatePins, currentStopId, dayLabel, daySummary, dayStats, excludedMandatory, nextStopId, routeStops, totalCost,
   type TripSnapshot,
 } from "@/lib/trip/view-model";
 import { DeleteTripButton } from "./delete-trip-button";
@@ -50,6 +50,7 @@ export function TripView({ initial, isCreator, initialPlan, initialDay }: Props)
 
   const rows = useMemo(() => buildRows(snap, plan, day), [snap, plan, day]);
   const stats = dayStats(rows);
+  const summary = daySummary(rows);
   const visibleRows = editMode ? rows : rows.filter((r) => r.included);
   const mandatory = useMemo(() => new Set(def.mandatory ?? []), [def.mandatory]);
   const excluded = excludedMandatory(snap, plan);
@@ -242,6 +243,15 @@ export function TripView({ initial, isCreator, initialPlan, initialDay }: Props)
           </div>
         </div>
       </div>
+      {summary.endMin != null && (
+        <p className="-mt-1 text-xs text-neutral-400" data-testid="day-summary">
+          {fmt(summary.startMin!)} 시작 → 예상 {fmt(summary.endMin)} 종료
+          {summary.walkKm > 0 && ` · 도보 ${summary.walkKm.toFixed(1)}km(${summary.walkMin}분)`}
+          {summary.carKm > 0 && ` · 차량 ${summary.carKm.toFixed(1)}km(${summary.carMin}분)`}
+          {summary.waitMin > 0 && ` · 대기 ${summary.waitMin}분`}
+          {summary.lateCount > 0 && ` · 늦는 일정 ${summary.lateCount}곳`}
+        </p>
+      )}
       {cost > 0 && <p className="-mt-1 text-xs text-neutral-400">누적 지출 기록 {cost.toLocaleString("ko-KR")}원</p>}
 
       {visibleRows.length === 0 ? (
@@ -256,9 +266,11 @@ export function TripView({ initial, isCreator, initialPlan, initialDay }: Props)
             return (
               <Fragment key={r.id}>
                 {dropBefore && <li aria-hidden className="ml-11 h-1 rounded bg-accent-400" />}
-                {r.included && r.travel && (
+                {r.included && (r.travel || r.wait > 0) && (
                   <li aria-hidden className="pl-11 text-xs text-neutral-400">
-                    {r.travel.mode === "car" ? "🚗 차량" : "🚶 도보"} 약 {r.travel.min}분 · {r.travel.km.toFixed(1)}km (추정)
+                    {r.travel && <>{r.travel.mode === "car" ? "🚗 차량" : "🚶 도보"} 약 {r.travel.min}분 · {r.travel.km.toFixed(1)}km (추정)</>}
+                    {r.travel && r.wait > 0 && " · "}
+                    {r.wait > 0 && <>⏳ {r.item.at}까지 {r.wait}분 대기</>}
                   </li>
                 )}
                 <StopCard

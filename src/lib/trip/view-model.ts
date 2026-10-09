@@ -104,6 +104,30 @@ export function dayStats(rows: StopRow[]) {
   return { total: inc.length, done, skipped, percent: inc.length ? Math.round(((done + skipped) / inc.length) * 100) : 0 };
 }
 
+export type DaySummary = {
+  startMin: number | null;
+  endMin: number | null;
+  walkKm: number;
+  walkMin: number;
+  carKm: number;
+  carMin: number;
+  waitMin: number;
+  lateCount: number;
+};
+
+// 하루 요약: 시작/끝, 이동거리·시간(도보/차량), 고정 시각 때문에 기다리는 시간, 늦는 항목 수
+export function daySummary(rows: StopRow[]): DaySummary {
+  const inc = rows.filter((r) => r.included && r.start != null && r.end != null);
+  const out: DaySummary = { startMin: inc[0]?.start ?? null, endMin: inc.length ? inc[inc.length - 1].end : null, walkKm: 0, walkMin: 0, carKm: 0, carMin: 0, waitMin: 0, lateCount: 0 };
+  for (const r of inc) {
+    if (r.travel?.mode === "walk") { out.walkKm += r.travel.km; out.walkMin += r.travel.min; }
+    if (r.travel?.mode === "car") { out.carKm += r.travel.km; out.carMin += r.travel.min; }
+    out.waitMin += r.wait;
+    if (r.late > 0) out.lateCount++;
+  }
+  return out;
+}
+
 export function totalCost(s: TripSnapshot): number {
   return Object.values(s.progress).reduce((sum, p) => sum + (p.cost ?? 0), 0);
 }

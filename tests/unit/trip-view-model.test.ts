@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { jeonjuTemplate } from "../../src/lib/trip/templates/jeonju";
 import {
-  applyNewPlace, applyOp, applyProgress, buildRows, candidatePins, currentStopId, dayKey, dayLabel, dayStats,
+  applyNewPlace, applyOp, applyProgress, buildRows, candidatePins, currentStopId, dayKey, dayLabel, daySummary, dayStats,
   excludedMandatory, getDayItems, nextStopId, routeStops, snapshotSignature, totalCost, type TripSnapshot,
 } from "../../src/lib/trip/view-model";
 import type { NewPlaceInput } from "../../src/lib/trip/day-ops";
@@ -100,7 +100,7 @@ describe("buildRows / 번호 / 진행", () => {
     expect(buildRows(s, PLAN, 1)[0].status).toBe("done");
   });
   it("날짜별 시작 시각을 쓴다", () => {
-    expect(buildRows(base(), PLAN, 1)[0].start).toBe(10 * 60 + 30);
+    expect(buildRows(base(), PLAN, 1)[0].start).toBe(11 * 60 + 30);
     expect(buildRows(base(), PLAN, 2)[0].start).toBe(9 * 60 + 30);
   });
 });
@@ -176,5 +176,45 @@ describe("기타", () => {
     expect(snapshotSignature(base())).toBe(snapshotSignature(base()));
     const a = applyOp(base(), PLAN, 1, { type: "toggle", itemId: "d1-snack" });
     expect(a.ok && snapshotSignature(a.snapshot)).not.toBe(snapshotSignature(base()));
+  });
+});
+
+describe("고정 시각과 하루 요약", () => {
+  it("균형형 1일차: 저녁은 17:30 고정이라 일찍 도착하면 기다리고, 끝나는 시각이 계산된다", () => {
+    const rows = buildRows(base(), PLAN, 1);
+    const dinner = rows.find((r) => r.id === "d1-dinner")!;
+    expect(dinner.start).toBe(17 * 60 + 30);
+    expect(dinner.wait).toBeGreaterThan(0);
+    expect(dinner.late).toBe(0);
+    const sum = daySummary(rows);
+    expect(sum.startMin).toBe(11 * 60 + 30);
+    expect(sum.endMin).toBe(dinner.end);
+    expect(sum.waitMin).toBe(dinner.wait);
+    expect(sum.walkKm).toBeGreaterThan(0);
+    expect(sum.lateCount).toBe(0);
+  });
+
+  it("setAt으로 앞 항목이 길어져 고정 시각을 넘기면 '늦음'으로 표시된다", () => {
+    let s = base();
+    // 경기전 체류를 +300분 늘리면 저녁(17:30)을 넘긴다
+    for (let i = 0; i < 6; i++) {
+      const r = applyOp(s, PLAN, 1, { type: "dur", itemId: "d1-gyeonggijeon", delta: 50 });
+      if (!r.ok) throw new Error(r.error);
+      s = r.snapshot;
+    }
+    const rows = buildRows(s, PLAN, 1);
+    const dinner = rows.find((r) => r.id === "d1-dinner")!;
+    expect(dinner.late).toBeGreaterThan(0);
+    expect(dinner.wait).toBe(0);
+    expect(daySummary(rows).lateCount).toBe(1);
+  });
+
+  it("applyOp setAt: 지정과 해제", () => {
+    const set = applyOp(base(), PLAN, 1, { type: "setAt", itemId: "d1-snack", at: "15:00" });
+    if (!set.ok) throw new Error(set.error);
+    expect(getDayItems(set.snapshot, PLAN, 1).find((i) => i.id === "d1-snack")?.at).toBe("15:00");
+    const cleared = applyOp(set.snapshot, PLAN, 1, { type: "setAt", itemId: "d1-snack", at: null });
+    if (!cleared.ok) throw new Error(cleared.error);
+    expect(getDayItems(cleared.snapshot, PLAN, 1).find((i) => i.id === "d1-snack")?.at).toBeUndefined();
   });
 });

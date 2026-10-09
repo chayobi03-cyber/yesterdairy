@@ -84,8 +84,8 @@ test("family trip: map + ordered stops on one page, instant edits, shared with f
 
   await step("one page: map pins and the ordered list share the same numbers", TRIP_URL, async () => {
     await expect(page.getByRole("region", { name: "여행 지도" })).toBeVisible();
-    // 1일차: 좌표가 있는 8곳이 지도에 번호 핀으로 (숙소는 좌표가 없어 목록에만 있다)
-    await expect(pins(page)).toHaveCount(8);
+    // 1일차: 좌표가 있는 7곳이 지도에 번호 핀으로 (숙소는 좌표가 없어 목록에만 있다)
+    await expect(pins(page)).toHaveCount(7);
     await expect(page.getByTitle("1. 한옥마을 인근 주차")).toBeVisible();
     await expect(page.getByTitle("3. 전동성당")).toBeVisible();
     await expect(page.getByTestId("now-bar")).toContainText("1. 한옥마을 인근 주차");
@@ -143,7 +143,7 @@ test("family trip: map + ordered stops on one page, instant edits, shared with f
     await expect(page.getByTestId("now-bar")).toContainText("1. 전주향교");
     await expect(pins(page)).toHaveCount(3);
     await page.getByRole("button", { name: "1일차" }).click();
-    await expect(pins(page)).toHaveCount(8);
+    await expect(pins(page)).toHaveCount(7);
 
     await page.getByRole("combobox", { name: "여행 대안" }).selectOption("experience");
     await expect(stop(page, "d1-hanok-exp")).toBeVisible();
@@ -162,11 +162,16 @@ test("family trip: map + ordered stops on one page, instant edits, shared with f
   await step("edit mode: exclude, reorder and add - the map follows instantly", TRIP_URL, async () => {
     await stop(page, "d1-snack").getByRole("button", { name: "제외", exact: true }).click();
     await expect(stop(page, "d1-snack")).toContainText("제외됨");
-    await expect(pins(page)).toHaveCount(7);
+    await expect(pins(page)).toHaveCount(6);
 
     await stop(page, "d1-lunch").getByRole("button", { name: "위로" }).click();
     await expect.poll(async () => (await stopOrder(page))[0]).toBe("d1-lunch");
     await expect(page.getByTitle("1. 전주비빔밥 점심")).toBeVisible(); // 번호도 순서를 따라간다
+
+    // 고정 시작 시각: 저녁을 18:00으로 바꾸면 카드와 하루 요약에 바로 반영된다
+    await page.getByLabel("저녁 식사 고정 시작 시각").fill("18:00");
+    await expect(stop(page, "d1-dinner")).toContainText("18:00");
+    await expect(page.getByTestId("day-summary")).toContainText("대기");
 
     await page.getByLabel("일정 이름").fill("카페 휴식");
     await page.getByRole("button", { name: "장소 없는 일정 추가" }).click();
@@ -179,7 +184,7 @@ test("family trip: map + ordered stops on one page, instant edits, shared with f
     await form.getByLabel("경도").fill("127.1510");
     await form.getByRole("button", { name: "저장" }).click();
     await expect(page.getByText(`E2E카페 ${runId}`).first()).toBeVisible();
-    await expect(pins(page)).toHaveCount(8); // 7 + 새 장소
+    await expect(pins(page)).toHaveCount(7); // 6 + 새 장소
 
     // 보기 모드로 돌아가면 제외된 항목은 숨겨진다
     await page.getByRole("button", { name: "편집 끝내기" }).click();
