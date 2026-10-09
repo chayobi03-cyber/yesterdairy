@@ -25,15 +25,15 @@ const TripMap = dynamic(() => import("./trip-map"), {
 const NO_CANDIDATES: never[] = [];
 const FALLBACK_CENTER: [number, number] = [37.5665, 126.978];
 
-type Props = { initial: TripSnapshot; isCreator: boolean; initialPlan: string; initialDay: number };
+type Props = { initial: TripSnapshot; isCreator: boolean; userId: string; initialPlan: string; initialDay: number };
 
 const chip = (active: boolean) =>
   `shrink-0 rounded-full border px-3 py-1.5 text-sm ${active ? "border-accent-400 bg-accent-50 font-medium text-accent-700" : "border-line text-neutral-500"}`;
 const mini = (active = false) =>
   `min-h-9 shrink-0 rounded-full border px-3 text-xs font-medium ${active ? "border-accent-400 bg-accent-400 text-white" : "border-line bg-card text-neutral-600"}`;
 
-export function TripView({ initial, isCreator, initialPlan, initialDay }: Props) {
-  const { snap, pending, error, clearError, edit, patchProgress, createPlace } = useTripState(initial);
+export function TripView({ initial, isCreator, userId, initialPlan, initialDay }: Props) {
+  const { snap, pending, uploading, error, clearError, edit, patchProgress, createPlace, addPhotos, removePhoto } = useTripState(initial);
   const def = snap.def;
   const planIds = Object.keys(def.plans);
 
@@ -137,9 +137,10 @@ export function TripView({ initial, isCreator, initialPlan, initialDay }: Props)
           <h1 className="truncate text-lg font-semibold">{snap.title}</h1>
           <p className="truncate text-xs text-neutral-400" aria-live="polite">
             {[def.dest, def.party, snap.startDate ? `${snap.startDate} 출발` : ""].filter(Boolean).join(" · ")}
-            {pending > 0 && <span role="status"> · 저장 중…</span>}
+            {pending > 0 && <span role="status"> · {uploading > 0 ? `사진 올리는 중… (${uploading}장 남음)` : "저장 중…"}</span>}
           </p>
         </div>
+        <Link href={`/trips/${snap.tripId}/summary?plan=${plan}`} className={mini()}>여행 요약</Link>
         <button type="button" aria-pressed={editMode} onClick={() => setEditMode((v) => !v)} className={mini(editMode)}>
           {editMode ? "편집 끝내기" : "일정 편집"}
         </button>
@@ -287,6 +288,10 @@ export function TripView({ initial, isCreator, initialPlan, initialDay }: Props)
                   onQuickDone={quickDone}
                   onPatch={patchProgress}
                   onEdit={onEdit}
+                  photos={snap.photos.filter((ph) => ph.itemId === r.id)}
+                  canDeletePhoto={(ph) => isCreator || ph.createdBy === userId}
+                  onAddPhotos={(itemId, files) => void addPhotos(itemId, files)}
+                  onRemovePhoto={removePhoto}
                 />
                 {dropAfter && <li aria-hidden className="ml-11 h-1 rounded bg-accent-400" />}
               </Fragment>
@@ -308,7 +313,7 @@ export function TripView({ initial, isCreator, initialPlan, initialDay }: Props)
       )}
 
       <p className="text-xs text-neutral-400">
-        운영시간·예약·공연·주차요금·좌표는 실시간 확인 결과가 아닌 참고 정보예요. 방문 전 공식 채널에서 확인하세요. 이동·체류시간은 계획용 추정치예요. 사진은 아직 여행에 첨부되지 않아요.
+        운영시간·예약·공연·주차요금·좌표는 실시간 확인 결과가 아닌 참고 정보예요. 방문 전 공식 채널에서 확인하세요. 이동·체류시간은 계획용 추정치예요. 사진은 가족 구성원에게만 보여요.
         지도 © OpenStreetMap contributors.
       </p>
       {isCreator && <DeleteTripButton tripId={snap.tripId} />}

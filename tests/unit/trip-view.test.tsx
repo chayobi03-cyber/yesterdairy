@@ -11,6 +11,8 @@ const h = vi.hoisted(() => ({
   editDay: vi.fn(),
   updateProgress: vi.fn(),
   addPlace: vi.fn(),
+  deletePhoto: vi.fn(),
+  uploadTripPhoto: vi.fn(),
 }));
 
 vi.mock("next/dynamic", () => ({
@@ -26,8 +28,11 @@ vi.mock("@/app/(app)/trips/actions", () => ({
   editDay: h.editDay,
   updateProgress: h.updateProgress,
   addPlace: h.addPlace,
+  deletePhoto: h.deletePhoto,
+  registerPhoto: vi.fn(),
   deleteTrip: vi.fn(),
 }));
+vi.mock("@/lib/trip/photo-upload", () => ({ uploadTripPhoto: h.uploadTripPhoto }));
 
 import { TripView } from "../../src/app/(app)/trips/[id]/trip-view";
 
@@ -38,11 +43,12 @@ const snapshot = (over: Partial<TripSnapshot> = {}): TripSnapshot => ({
   def: structuredClone(jeonjuTemplate),
   overrides: {},
   progress: {},
+  photos: [],
   ...over,
 });
 
 const renderView = (initial = snapshot(), isCreator = false) =>
-  render(<TripView initial={initial} isCreator={isCreator} initialPlan="balanced" initialDay={1} />);
+  render(<TripView initial={initial} isCreator={isCreator} userId="u1" initialPlan="balanced" initialDay={1} />);
 
 const stop = (id: string) => screen.getByTestId(`stop-${id}`);
 const orderOfStops = () => screen.getAllByTestId(/^stop-/).map((el) => el.getAttribute("data-testid")!.replace("stop-", ""));
@@ -54,6 +60,8 @@ beforeEach(() => {
   h.editDay.mockReset().mockResolvedValue({ ok: true });
   h.updateProgress.mockReset().mockResolvedValue({ ok: true });
   h.addPlace.mockReset().mockResolvedValue({ ok: true });
+  h.deletePhoto.mockReset().mockResolvedValue({ ok: true });
+  h.uploadTripPhoto.mockReset().mockResolvedValue({ ok: true });
   Element.prototype.scrollIntoView = vi.fn();
   window.confirm = vi.fn(() => true);
 });
@@ -228,9 +236,9 @@ describe("메모/지출 입력", () => {
     fireEvent.change(memo(), { target: { value: "내가 쓰는 중" } });
 
     const remote = snapshot({
-      progress: { "d1-parking": { item_id: "d1-parking", status: null, checks: {}, memo: "가족이 쓴 메모", cost: 3000, updated_at: "2026-10-09T10:00:00.000Z" } },
+      progress: { "d1-parking": { item_id: "d1-parking", status: null, checks: {}, memo: "가족이 쓴 메모", cost: 3000, review: "", rating: null, updated_at: "2026-10-09T10:00:00.000Z" } },
     });
-    view.rerender(<TripView initial={remote} isCreator={false} initialPlan="balanced" initialDay={1} />);
+    view.rerender(<TripView initial={remote} isCreator={false} userId="u1" initialPlan="balanced" initialDay={1} />);
     expect(memo().value).toBe("내가 쓰는 중"); // 입력 중: 유지
     expect((within(stop("d1-parking")).getByLabelText(/지출/) as HTMLInputElement).value).toBe("3000"); // 입력 중 아님: 따라감
   });
@@ -415,7 +423,7 @@ describe("기타", () => {
     const s = snapshot();
     s.def.days.push({ n: 3, label: "3일차", start: "10:00" });
     s.def.plans.balanced.days["3"] = [{ id: "d3-rest", rest: "집에서 쉬기" }];
-    render(<TripView initial={s} isCreator={false} initialPlan="balanced" initialDay={3} />);
+    render(<TripView initial={s} isCreator={false} userId="u1" initialPlan="balanced" initialDay={3} />);
     expect(screen.queryByTestId("map")).toBeNull();
     expect(screen.getByText(/지도에 표시할 장소가 아직 없어요/)).toBeTruthy();
   });
@@ -451,5 +459,103 @@ describe("고정 시작 시각", () => {
     // 점심을 길게 늘려 저녁(17:30 고정)을 확실히 넘긴다
     for (let i = 0; i < 40; i++) fireEvent.click(within(screen.getByTestId("stop-d1-lunch")).getByRole("button", { name: "체류시간 10분 증가" }));
     expect(screen.getByTestId("stop-d1-dinner").textContent).toMatch(/예정 17:30보다 \d+분 늦음/);
+  });
+});
+
+describe("소감과 사진", () => {
+  const withDone = (extra: Partial<TripSnapshot> = {}) =>
+    snapshot({
+      progress: { "d1-parking": { item_id: "d1-parking", status: "done", checks: {}, memo: "", cost: null, review: "", rating: null, updated_at: "" } },
+      ...extra,
+    });
+  const photo = (id: string, itemId: string | null, createdBy = "u1") => ({
+    id, itemId, createdBy, createdAt: "2026-10-10T00:00:00Z", url: `https://x/${id}.jpg`, thumbUrl: `https://x/${id}_t.jpg`,
+  });
+
+  it("다녀온 장소(도착/완료)에서만 소감 영역이 보이고, 별점을 누르면 바로 반영되고 저장된다", () => {
+    // 아직 방문 전인 첫 장소에는 소감이 없다
+    const { unmount } = renderView();
+    expect(screen.queryByRole("region", { name: /소감/ })).toBeNull();
+    unmount();
+
+    renderView(withDone());
+    // 완료된 주차 장소를 열어서 소감을 남긴다
+    fireEvent.click(within(stop("d1-parking")).getByRole("button", { name: /상세 열기/ }));
+    const review = screen.getByRole("region", { name: "한옥마을 인근 주차 소감" });
+    fireEvent.click(within(review).getByRole("button", { name: "별점 4점" }));
+    expect(within(review).getByRole("button", { name: "별점 4점" }).getAttribute("aria-pressed")).toBe("true");
+    expect(h.updateProgress).toHaveBeenCalledWith("trip-1", "d1-parking", { rating: 4 });
+    // 목록 카드에도 별이 보인다
+    expect(stop("d1-parking").textContent).toContain("★★★★");
+    // 같은 별을 다시 누르면 지운다
+    fireEvent.click(within(review).getByRole("button", { name: "별점 4점" }));
+    expect(h.updateProgress).toHaveBeenLastCalledWith("trip-1", "d1-parking", { rating: null });
+  });
+
+  it("소감 글은 입력을 마치면(blur) 저장된다", () => {
+    renderView(withDone());
+    fireEvent.click(within(stop("d1-parking")).getByRole("button", { name: /상세 열기/ }));
+    const box = screen.getByLabelText(/소감 \(가족 모두에게 보여요\)/);
+    fireEvent.change(box, { target: { value: "주차가 편했어요" } });
+    fireEvent.blur(box);
+    expect(h.updateProgress).toHaveBeenCalledWith("trip-1", "d1-parking", { review: "주차가 편했어요" });
+  });
+
+  it("장소별 사진이 보이고, 지우기는 올린 사람과 여행을 만든 사람에게만 보인다", () => {
+    const s = withDone({ photos: [photo("p1", "d1-parking", "u1"), photo("p2", "d1-parking", "other"), photo("p3", "d1-lunch")] });
+    const first = renderView(s, false);
+    fireEvent.click(within(stop("d1-parking")).getByRole("button", { name: /상세 열기/ }));
+    expect(within(stop("d1-parking")).getAllByRole("img")).toHaveLength(2); // 이 장소의 사진만
+    expect(stop("d1-parking").textContent).toContain("📷 2");
+
+    // 내가(u1) 올린 사진: 삭제 가능
+    fireEvent.click(screen.getByRole("button", { name: "한옥마을 인근 주차 사진 1 크게 보기" }));
+    expect(screen.getByRole("button", { name: "삭제" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "사진 닫기" }));
+    // 다른 사람이 올린 사진: 만든 사람이 아니면 삭제 버튼이 없다
+    fireEvent.click(screen.getByRole("button", { name: "한옥마을 인근 주차 사진 2 크게 보기" }));
+    expect(screen.queryByRole("button", { name: "삭제" })).toBeNull();
+    first.unmount();
+
+    // 여행을 만든 사람은 다른 사람의 사진도 지울 수 있다
+    renderView(s, true);
+    fireEvent.click(within(stop("d1-parking")).getByRole("button", { name: /상세 열기/ }));
+    fireEvent.click(screen.getByRole("button", { name: "한옥마을 인근 주차 사진 2 크게 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "삭제" }));
+    expect(within(stop("d1-parking")).getAllByRole("img")).toHaveLength(1); // 바로 사라진다
+    expect(h.deletePhoto).toHaveBeenCalledWith("trip-1", "p2");
+  });
+
+  it("사진을 고르면 한 장씩 올리고, 끝나면 서버 상태를 다시 받는다", async () => {
+    renderView();
+    const input = screen.getByLabelText("한옥마을 인근 주차 사진 선택") as HTMLInputElement;
+    const files = [new File(["a"], "a.jpg", { type: "image/jpeg" }), new File(["b"], "b.png", { type: "image/png" })];
+    await act(async () => {
+      fireEvent.change(input, { target: { files } });
+    });
+    await waitFor(() => expect(h.uploadTripPhoto).toHaveBeenCalledTimes(2));
+    expect(h.uploadTripPhoto).toHaveBeenNthCalledWith(1, "trip-1", "d1-parking", files[0]);
+    expect(h.refresh).toHaveBeenCalled();
+  });
+
+  it("한 곳의 사진이 12장이면 더 올릴 수 없고 이유를 알려준다", async () => {
+    const full = Array.from({ length: 12 }, (_, i) => photo(`p${i}`, "d1-parking"));
+    renderView(snapshot({ photos: full }));
+    const input = screen.getByLabelText("한옥마을 인근 주차 사진 선택") as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [new File(["a"], "a.jpg", { type: "image/jpeg" })] } });
+    });
+    expect(h.uploadTripPhoto).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toContain("12장");
+  });
+
+  it("업로드 실패 메시지를 보여준다", async () => {
+    h.uploadTripPhoto.mockResolvedValue({ ok: false, error: "사진을 올리지 못했어요." });
+    renderView();
+    const input = screen.getByLabelText("한옥마을 인근 주차 사진 선택") as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [new File(["a"], "a.jpg", { type: "image/jpeg" })] } });
+    });
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("사진을 올리지 못했어요"));
   });
 });

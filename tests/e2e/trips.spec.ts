@@ -34,6 +34,12 @@ async function signUp(page: Page, name: string) {
   await page.waitForURL("**/onboarding");
 }
 
+// 1x1 투명이 아닌 작은 PNG (브라우저가 디코드해서 JPEG로 줄여 올린다)
+const PNG_1X1 = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+);
+
 const pins = (page: Page) => page.locator(".leaflet-marker-icon");
 const stop = (page: Page, id: string) => page.getByTestId(`stop-${id}`);
 const stopOrder = (page: Page) => page.getByTestId(/^stop-/).evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.testid!.replace("stop-", "")));
@@ -126,6 +132,37 @@ test("family trip: map + ordered stops on one page, instant edits, shared with f
       await expect(page.getByRole("button", { name: "한옥마을 인근 주차 완료 취소" })).toBeVisible({ timeout: 2_000 });
       await expect(page.getByText("누적 지출 기록 45,000원")).toBeVisible({ timeout: 2_000 });
     }).toPass({ timeout: 20_000 });
+  });
+
+  await step("review, rating and photo are saved and shown in the trip summary", TRIP_URL, async () => {
+    const detail = page.getByRole("region", { name: "전주비빔밥 점심 상세" });
+    const review = detail.getByRole("region", { name: "전주비빔밥 점심 소감" });
+    await review.getByRole("button", { name: "별점 5점" }).click();
+    await review.getByLabel(/소감 \(가족 모두에게 보여요\)/).fill(`비빔밥이 맛있었어요 ${runId}`);
+    await review.getByLabel(/소감 \(가족 모두에게 보여요\)/).blur();
+    await detail.getByLabel("전주비빔밥 점심 사진 선택").setInputFiles({ name: "lunch.png", mimeType: "image/png", buffer: PNG_1X1 });
+    // 업로드(브라우저 → Storage) + 메타데이터 저장 + 서버 상태 재조회가 끝나면 썸네일이 나타난다
+    await expect(detail.getByRole("img", { name: "전주비빔밥 점심 사진 1" })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("저장 중…")).toHaveCount(0);
+    await expect(async () => {
+      await page.reload();
+      const d = page.getByRole("region", { name: "전주비빔밥 점심 상세" });
+      await expect(d.getByLabel(/소감 \(가족 모두에게 보여요\)/)).toHaveValue(`비빔밥이 맛있었어요 ${runId}`, { timeout: 2_000 });
+      await expect(d.getByRole("button", { name: "별점 5점" })).toHaveAttribute("aria-pressed", "true", { timeout: 2_000 });
+      await expect(d.getByRole("img", { name: "전주비빔밥 점심 사진 1" })).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
+
+    // 여행 요약: 한 줄 요약, 소감, 사진이 모인다
+    await page.getByRole("link", { name: "여행 요약" }).click();
+    await page.waitForURL(/\/trips\/[0-9a-f-]{36}\/summary/);
+    await expect(page.getByTestId("summary-headline")).toContainText("다녀왔어요");
+    await expect(page.getByTestId("summary-headline")).toContainText("45,000원");
+    const day1 = page.getByRole("region", { name: "1일차 기록" });
+    await expect(day1).toContainText(`비빔밥이 맛있었어요 ${runId}`);
+    await expect(day1.getByRole("img", { name: "전주비빔밥 점심 사진 1" })).toBeVisible();
+    await page.getByRole("button", { name: "여행 별점 4점" }).click();
+    await page.getByRole("link", { name: "여행 화면으로" }).click();
+    await page.waitForURL(TRIP_URL);
   });
 
   await step("tapping a map pin selects that stop in the list", TRIP_URL, async () => {
@@ -226,6 +263,13 @@ test("family trip: map + ordered stops on one page, instant edits, shared with f
       await expect(detail2).toBeVisible();
       await expect(detail2.getByLabel(/메모/)).toHaveValue(`예약 완료 ${runId}`);
       await expect(detail2.getByRole("button", { name: "📍 도착" })).toHaveAttribute("aria-pressed", "true");
+      // 소감·사진도 가족에게 보인다 (테이블 RLS + 스토리지 RLS)
+      await expect(detail2.getByLabel(/소감 \(가족 모두에게 보여요\)/)).toHaveValue(`비빔밥이 맛있었어요 ${runId}`);
+      await expect(detail2.getByRole("img", { name: "전주비빔밥 점심 사진 1" })).toBeVisible();
+      // 올린 사람이 아니면 사진 삭제 버튼이 없다
+      await detail2.getByRole("button", { name: "전주비빔밥 점심 사진 1 크게 보기" }).click();
+      await expect(page2.getByRole("button", { name: "삭제" })).toHaveCount(0);
+      await page2.getByRole("button", { name: "사진 닫기" }).click();
 
       // 두 번째 구성원이 쓴 메모도 첫 번째 사람에게 보인다
       await detail2.getByLabel(/메모/).fill(`두 번째 구성원 메모 ${runId}`);

@@ -5,7 +5,8 @@ import type { DayOp } from "@/lib/trip/day-ops";
 import type { ProgressPatch } from "@/lib/trip/progress";
 import { useSyncedField } from "@/lib/trip/use-synced-field";
 import type { StopRow } from "@/lib/trip/view-model";
-import type { ProgressRow, ProgressStatus } from "@/lib/trip/types";
+import type { ProgressRow, ProgressStatus, TripPhoto } from "@/lib/trip/types";
+import { PhotoStrip } from "./photo-strip";
 
 const STATUS_LABEL: Record<ProgressStatus, string> = { arrived: "📍 도착", done: "✅ 완료", skipped: "⏭ 건너뜀" };
 const BADGE: Record<ProgressStatus, string> = { arrived: "도착", done: "완료", skipped: "건너뜀" };
@@ -24,6 +25,10 @@ export type StopCardProps = {
   onQuickDone: (id: string) => void;
   onPatch: (id: string, patch: ProgressPatch) => void;
   onEdit: (op: DayOp, confirmMessage?: string) => void;
+  photos: TripPhoto[];
+  canDeletePhoto: (p: TripPhoto) => boolean;
+  onAddPhotos: (itemId: string, files: File[]) => void;
+  onRemovePhoto: (photoId: string) => void;
 };
 
 export function StopCard(p: StopCardProps) {
@@ -68,6 +73,8 @@ export function StopCard(p: StopCardProps) {
               {row.included && row.start != null && row.end != null ? `${row.item.at ? "⏰ " : ""}${fmt(row.start)}–${fmt(row.end)} · ` : "제외됨 · "}
               {place?.cat ? `${CATS[place.cat] ?? ""} · ` : ""}
               {row.dur}분
+              {p.photos.length > 0 && ` · 📷 ${p.photos.length}`}
+              {p.progress?.rating ? ` · ${"★".repeat(p.progress.rating)}` : ""}
               {row.included && row.late > 0 && <span className="ml-1 text-red-500">· 예정 {row.item.at}보다 {row.late}분 늦음</span>}
             </span>
           </button>
@@ -138,10 +145,11 @@ function Tool({ label, aria, onClick, disabled, danger }: { label: string; aria?
   );
 }
 
-function StopDetail({ row, progress, onPatch }: StopCardProps) {
+function StopDetail({ row, progress, onPatch, photos, canDeletePhoto, onAddPhotos, onRemovePhoto }: StopCardProps) {
   const place = row.place;
   const memo = useSyncedField(progress?.memo ?? "");
   const cost = useSyncedField(progress?.cost == null ? "" : String(progress.cost));
+  const review = useSyncedField(progress?.review ?? "");
   const status = row.status;
   const checks = progress?.checks ?? {};
   const title = place?.name ?? row.item.rest ?? "일정";
@@ -223,6 +231,39 @@ function StopDetail({ row, progress, onPatch }: StopCardProps) {
           className="mt-1 min-h-20 w-full rounded-xl border border-line px-3 py-2 text-sm text-ink outline-none focus:border-accent-300"
         />
       </label>
+      {(status === "arrived" || status === "done") && (
+        <section aria-label={`${title} 소감`} className="flex flex-col gap-2 rounded-xl bg-accent-50/60 p-3">
+          <h3 className="text-sm font-medium text-neutral-600">다녀온 소감</h3>
+          <div className="flex items-center gap-1" role="group" aria-label="별점">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                type="button"
+                aria-label={`별점 ${n}점`}
+                aria-pressed={progress?.rating === n}
+                onClick={() => onPatch(row.id, { rating: progress?.rating === n ? null : n })}
+                className={`h-10 w-10 rounded-full text-xl ${(progress?.rating ?? 0) >= n ? "text-amber-400" : "text-neutral-300"}`}
+              >
+                ★
+              </button>
+            ))}
+          </div>
+          <label className="text-xs text-neutral-500">
+            소감 (가족 모두에게 보여요)
+            <textarea
+              value={review.value}
+              maxLength={1000}
+              onChange={(e) => review.setValue(e.target.value)}
+              onBlur={() => review.dirty && onPatch(row.id, { review: review.commit() })}
+              placeholder="무엇이 좋았는지, 아이 반응은 어땠는지…"
+              className="mt-1 min-h-20 w-full rounded-xl border border-line bg-card px-3 py-2 text-sm text-ink outline-none focus:border-accent-300"
+            />
+          </label>
+        </section>
+      )}
+
+      <PhotoStrip title={title} photos={photos} canDelete={canDeletePhoto} onAdd={(files) => onAddPhotos(row.id, files)} onRemove={onRemovePhoto} />
+
       <label className="text-xs text-neutral-500">
         지출 (원)
         <input

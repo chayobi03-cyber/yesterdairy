@@ -150,12 +150,26 @@ describe("buildPlace", () => {
   });
 });
 
+describe("applyProgressPatch 소감/별점", () => {
+  it("소감과 별점을 독립적으로 저장하고 다른 값은 보존한다", () => {
+    const a = applyProgressPatch({ ...EMPTY_PROGRESS, memo: "예약함", status: "done" }, { review: "비빔밥이 맛있었어요", rating: 5 });
+    expect(a.ok && a.state).toMatchObject({ memo: "예약함", status: "done", review: "비빔밥이 맛있었어요", rating: 5 });
+  });
+  it("별점은 1~5 정수, 소감은 1000자까지, null은 지우기", () => {
+    for (const bad of [0, 6, 2.5, Number.NaN]) expect(applyProgressPatch(EMPTY_PROGRESS, { rating: bad }).ok).toBe(false);
+    expect(applyProgressPatch(EMPTY_PROGRESS, { review: "가".repeat(1001) }).ok).toBe(false);
+    expect(applyProgressPatch(EMPTY_PROGRESS, { review: "가".repeat(1000) }).ok).toBe(true);
+    const cleared = applyProgressPatch({ ...EMPTY_PROGRESS, rating: 4 }, { rating: null });
+    expect(cleared.ok && cleared.state.rating).toBeNull();
+  });
+});
+
 describe("applyProgressPatch", () => {
   it("상태/메모/지출을 독립적으로 갱신하고 나머지는 보존", () => {
     const a = applyProgressPatch(EMPTY_PROGRESS, { status: "arrived" });
     const b = a.ok && applyProgressPatch(a.state, { memo: "예약함" });
     const c = b && b.ok && applyProgressPatch(b.state, { cost: 45000 });
-    expect(c && c.ok && c.state).toEqual({ status: "arrived", checks: {}, memo: "예약함", cost: 45000 });
+    expect(c && c.ok && c.state).toEqual({ status: "arrived", checks: {}, memo: "예약함", cost: 45000, review: "", rating: null });
   });
   it("체크 항목은 인덱스별로 병합 (다른 항목 체크를 지우지 않음)", () => {
     const a = applyProgressPatch(EMPTY_PROGRESS, { checkIndex: 0, checked: true });
@@ -164,7 +178,7 @@ describe("applyProgressPatch", () => {
     expect(c && c.ok && c.state.checks).toEqual({ "0": false, "2": true });
   });
   it("입력을 바꾸지 않는다", () => {
-    const cur = { status: null, checks: { "0": true }, memo: "", cost: null };
+    const cur = { ...EMPTY_PROGRESS, checks: { "0": true } };
     applyProgressPatch(cur, { checkIndex: 1, checked: true });
     expect(cur.checks).toEqual({ "0": true });
   });

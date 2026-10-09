@@ -45,5 +45,21 @@ export type ProgressRow = {
   checks: Record<string, boolean>;
   memo: string;
   cost: number | null;
+  // 다녀온 뒤의 소감(글, 최대 1000자)과 별점(1~5)
+  review: string;
+  rating: number | null;
   updated_at: string;
 };
+
+// 여행 사진. url/thumbUrl은 서버가 발급한 서명 URL이라 시간이 지나면 만료된다.
+export type TripPhoto = {
+  id: string;
+  itemId: string | null;
+  createdBy: string;
+  createdAt: string;
+  url: string;
+  thumbUrl: string;
+};
+
+// 여행 전체 소감을 담는 예약 항목 id (장소별 진행 기록과 같은 테이블을 쓴다)
+export const TRIP_NOTE_ID = "trip-summary";

@@ -6,6 +6,8 @@ export type ProgressState = {
   checks: Record<string, boolean>;
   memo: string;
   cost: number | null;
+  review: string;
+  rating: number | null;
 };
 
 export type ProgressPatch = Partial<{
@@ -14,9 +16,11 @@ export type ProgressPatch = Partial<{
   checked: boolean;
   memo: string;
   cost: number | null;
+  review: string;
+  rating: number | null;
 }>;
 
-export const EMPTY_PROGRESS: ProgressState = { status: null, checks: {}, memo: "", cost: null };
+export const EMPTY_PROGRESS: ProgressState = { status: null, checks: {}, memo: "", cost: null, review: "", rating: null };
 
 export function applyProgressPatch(
   cur: ProgressState,
@@ -41,6 +45,16 @@ export function applyProgressPatch(
       return { ok: false, error: "지출은 0 이상의 정수로 입력해주세요." };
     }
     next.cost = patch.cost ?? null;
+  }
+  if ("review" in patch) {
+    if ((patch.review ?? "").length > 1000) return { ok: false, error: "소감은 1000자까지 쓸 수 있어요." };
+    next.review = patch.review ?? "";
+  }
+  if ("rating" in patch) {
+    if (patch.rating != null && !(Number.isInteger(patch.rating) && patch.rating >= 1 && patch.rating <= 5)) {
+      return { ok: false, error: "별점은 1~5 사이로 골라주세요." };
+    }
+    next.rating = patch.rating ?? null;
   }
   return { ok: true, state: next };
 }
