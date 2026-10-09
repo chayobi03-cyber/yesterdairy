@@ -13,6 +13,9 @@ const password = "TestPass123!";
 const TRIP_URL = /\/trips\/[0-9a-f-]{36}(\?.*)?$/;
 
 test.describe.configure({ mode: "serial" });
+// 클릭/입력이 없는 요소를 무한정 기다리다 테스트 전체 타임아웃으로만 터지지 않게 한다
+// (원인 스텝이 로그에 남도록).
+test.use({ actionTimeout: 15_000 });
 
 function makeStep(page: Page) {
   return async (name: string, expectUrl: RegExp, run: () => Promise<void>) => {
@@ -51,8 +54,8 @@ function countServerActions(page: Page) {
 
 test("family trip: map + ordered stops on one page, instant edits, shared with family only", async ({ page, browser }) => {
   // 시나리오가 길다(가입 2명 + 지도/목록/편집/동시 편집/삭제, 모두 실제 Supabase 왕복).
-  // 전역 90초는 마지막 구간(두 번째 구성원)에서 항상 끊겨서, 이 테스트만 넉넉히 잡는다.
-  test.setTimeout(240_000);
+  // 전역 90초보다 넉넉히 잡는다.
+  test.setTimeout(150_000);
   const step = makeStep(page);
   let inviteCode = "";
   let tripUrl = "";
@@ -212,8 +215,10 @@ test("family trip: map + ordered stops on one page, instant edits, shared with f
       await expect(page2.getByRole("heading", { name: "전주 가족 1박 2일" })).toBeVisible();
       await expect(stop(page2, "d1-parking")).toContainText("완료");
       // 첫 번째 구성원이 쓴 메모/상태가 그대로 보인다
-      await stop(page2, "d1-lunch").getByRole("button", { name: /상세 열기/ }).click();
+      // 점심이 "지금 가야 할 곳"이라 상세가 이미 열려 있다(버튼은 "닫기"). 닫혀 있을 때만 연다.
       const detail2 = page2.getByRole("region", { name: "전주비빔밥 점심 상세" });
+      if ((await detail2.count()) === 0) await stop(page2, "d1-lunch").getByRole("button", { name: /상세 열기/ }).click();
+      await expect(detail2).toBeVisible();
       await expect(detail2.getByLabel(/메모/)).toHaveValue(`예약 완료 ${runId}`);
       await expect(detail2.getByRole("button", { name: "📍 도착" })).toHaveAttribute("aria-pressed", "true");
 
