@@ -85,6 +85,24 @@ describe("applyDayOp", () => {
     expect(ok(applyDayOp(base(), { type: "remove", itemId: "3" }, ctx)).map((i) => i.id)).toEqual(["1", "2"]);
   });
 
+  it("moveTo: 여러 칸을 한 번에 옮기고, 필수 방문지는 추월하지 못한다", () => {
+    const items: PlanItem[] = [{ id: "a", p: "x" }, { id: "1", p: "m1" }, { id: "2", p: "m2" }, { id: "b", p: "x" }];
+    expect(ok(applyDayOp(items, { type: "moveTo", from: 0, to: 3 }, ctx)).map((i) => i.id)).toEqual(["1", "2", "b", "a"]); // 일반 항목은 필수를 지나갈 수 있음
+    expect(applyDayOp(items, { type: "moveTo", from: 1, to: 3 }, ctx).ok).toBe(false); // 필수1이 필수2를 추월
+    expect(ok(applyDayOp(items, { type: "moveTo", from: 3, to: 0 }, ctx)).map((i) => i.id)).toEqual(["b", "a", "1", "2"]);
+    expect(applyDayOp(items, { type: "moveTo", from: 0, to: 9 }, ctx).ok).toBe(false);
+    expect(applyDayOp(items, { type: "moveTo", from: -1, to: 2 }, ctx).ok).toBe(false);
+    expect(ok(applyDayOp(items, { type: "moveTo", from: 2, to: 2 }, ctx)).map((i) => i.id)).toEqual(["a", "1", "2", "b"]);
+  });
+
+  it("add/addRest: 호출자가 정한 id를 쓰되 형식과 중복을 검사", () => {
+    expect(ok(applyDayOp(base(), { type: "add", placeId: "x", id: "it-mine" }, ctx))[3].id).toBe("it-mine");
+    expect(ok(applyDayOp(base(), { type: "addRest", title: "쉼", id: "it-rest" }, ctx))[3].id).toBe("it-rest");
+    expect(applyDayOp(base(), { type: "add", placeId: "x", id: "bad id!" }, ctx).ok).toBe(false);
+    expect(applyDayOp(base(), { type: "add", placeId: "x", id: "1" }, ctx).ok).toBe(false); // 이미 있는 id
+    expect(applyDayOp(base(), { type: "add", placeId: "x", id: "" }, ctx).ok).toBe(false);
+  });
+
   it("동시 편집 재현: 같은 기준에서 서로 다른 변경을 순서대로 다시 적용하면 둘 다 남는다", () => {
     // 낙관적 잠금 재시도 = '최신 데이터에 같은 연산을 다시 적용'
     const afterA = ok(applyDayOp(base(), { type: "toggle", itemId: "3" }, ctx)); // A가 먼저 저장

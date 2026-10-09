@@ -34,7 +34,7 @@ DB 트리거로 즉시 처리되므로 Supabase 대시보드의 이메일 인증
 - `src/app/(app)/` — 로그인 후 화면 (오늘/달력/가족/앨범/설정, 기록 작성·수정, 도전 모드, 개인 공간)
 - `src/app/login/`, `src/app/signup/` — 로그인/가입
 - `src/app/onboarding/` — 가입 직후 가족 생성/참여 화면
-- `src/app/(app)/trips/`, `src/lib/trip/` — 가족 여행 플래너 (홈의 "가족 여행" 카드로 진입, 하단 탭 아님). 여행 정의는 `trips.def`(JSON), 일차별 편집본은 `trip_day_items`, 장소별 진행 기록은 `trip_progress`. 가족 구성원 모두가 읽고 쓰는 공유 데이터이며(`0014_family_trips.sql`), 일정 엔진은 `src/lib/trip/engine.ts`. 동시 편집은 `updated_at` 기반 낙관적 잠금(충돌 시 최신 데이터에 재적용, `src/lib/trip/cas.ts`). 순수 로직은 `npm run test:unit`(Vitest)로 검증. 사진 첨부·지도 표시는 아직 없음
+- `src/app/(app)/trips/`, `src/lib/trip/` — 가족 여행 플래너 (홈의 "가족 여행" 카드로 진입, 하단 탭 아님). 여행 정의는 `trips.def`(JSON), 일차별 편집본은 `trip_day_items`, 장소별 진행 기록은 `trip_progress`. 가족 구성원 모두가 읽고 쓰는 공유 데이터이며(`0014_family_trips.sql`), 일정 엔진은 `src/lib/trip/engine.ts`. 동시 편집은 `updated_at` 기반 낙관적 잠금(충돌 시 최신 데이터에 재적용, `src/lib/trip/cas.ts`). 순수 로직은 `npm run test:unit`(Vitest)로 검증. 화면은 `trip-view.tsx`(지도+목록 한 페이지, 낙관적 반영 `use-trip-state.ts`), 지도는 Leaflet + OpenStreetMap 타일. 사진 첨부는 아직 없음
 - `src/app/actions.ts` — 서버 액션 (기록 생성/수정, 리액션, 댓글, 가족 생성/참여, 목표, 일정, 로그아웃)
 - `src/lib/supabase/` — 브라우저/서버/미들웨어용 Supabase 클라이언트
 - `supabase/migrations/` — DB 스키마 + RLS (private-first) + 초대 코드 조회 함수

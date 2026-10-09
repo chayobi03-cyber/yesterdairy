@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  currentIndex, directionsUrl, fmt, hasCoord, mandatoryStatus, move, timeline, toMin, travel, validCoord, validateTrip,
+  CAT_COLORS, LEGEND, catColor, currentIndex, directionsUrl, dragTargetIndex, fmt, hasCoord, mandatoryStatus, move,
+  routeUrl, timeline, toMin, travel, validCoord, validateTrip,
 } from "../../src/lib/trip/engine";
 import { jeonjuTemplate } from "../../src/lib/trip/templates/jeonju";
 import type { Place, PlanItem } from "../../src/lib/trip/types";
@@ -167,5 +168,61 @@ describe("validateTrip", () => {
     const big = clone();
     big.days = Array.from({ length: 31 }, (_, i) => ({ n: i + 1, start: "09:00" }));
     expect(validateTrip(big).length).toBeGreaterThan(0);
+  });
+});
+
+describe("routeUrl (Google 지도 경로)", () => {
+  const p = (id: string, lat?: number, lon?: number): Place => ({ id, name: id, lat, lon });
+  it("장소가 2곳 미만이면 만들지 않는다", () => {
+    expect(routeUrl([], "walk")).toBeNull();
+    expect(routeUrl([p("a", 1, 2)], "walk")).toBeNull();
+  });
+  it("첫 장소 -> 마지막 장소, 사이는 경유지(|로 구분), 이동수단 반영", () => {
+    const r = routeUrl([p("a", 35.1, 127.1), p("b", 35.2, 127.2), p("c", 35.3, 127.3)], "walk")!;
+    const q = new URL(r.url).searchParams;
+    expect(q.get("origin")).toBe("35.1,127.1");
+    expect(q.get("destination")).toBe("35.3,127.3");
+    expect(q.get("waypoints")).toBe("35.2,127.2");
+    expect(q.get("travelmode")).toBe("walking");
+    expect(r.truncated).toBe(false);
+    expect(new URL(routeUrl([p("a", 1, 2), p("b", 3, 4)], "car")!.url).searchParams.get("travelmode")).toBe("driving");
+  });
+  it("2곳이면 경유지 없음, 좌표 없는 장소는 이름으로", () => {
+    const q = new URL(routeUrl([p("a", 1, 2), p("카페")], "walk")!.url).searchParams;
+    expect(q.has("waypoints")).toBe(false);
+    expect(q.get("destination")).toBe("카페");
+  });
+  it("정류장이 11곳을 넘으면 앞쪽 11곳만 쓰고 알린다", () => {
+    const many = Array.from({ length: 15 }, (_, i) => p(`s${i}`, 35 + i / 100, 127));
+    const r = routeUrl(many, "walk")!;
+    expect(r.truncated).toBe(true);
+    expect(new URL(r.url).searchParams.get("waypoints")!.split("|")).toHaveLength(9);
+  });
+});
+
+describe("dragTargetIndex", () => {
+  const rects = [{ top: 0, bottom: 100 }, { top: 100, bottom: 200 }, { top: 200, bottom: 300 }];
+  it("칸 중앙선을 넘으면 그 칸으로", () => {
+    expect(dragTargetIndex(rects, 10)).toBe(0);
+    expect(dragTargetIndex(rects, 49)).toBe(0);
+    expect(dragTargetIndex(rects, 51)).toBe(1);
+    expect(dragTargetIndex(rects, 160)).toBe(2);
+  });
+  it("맨 위/맨 아래를 벗어나도 범위 안", () => {
+    expect(dragTargetIndex(rects, -500)).toBe(0);
+    expect(dragTargetIndex(rects, 9999)).toBe(2);
+    expect(dragTargetIndex([], 10)).toBe(0);
+  });
+});
+
+describe("카테고리 색 / 범례", () => {
+  it("모든 카테고리에 색이 있고 모르는 분류는 기타 색", () => {
+    for (const cat of ["sight", "food", "activity", "show", "parking", "stay", "etc"]) expect(CAT_COLORS[cat]).toBeTruthy();
+    expect(catColor("unknown")).toBe(CAT_COLORS.etc);
+    expect(catColor(undefined)).toBe(CAT_COLORS.etc);
+  });
+  it("범례가 모든 카테고리를 빠짐없이, 중복 없이 덮는다", () => {
+    const cats = LEGEND.flatMap((l) => l.cats).sort();
+    expect(cats).toEqual(Object.keys(CAT_COLORS).sort());
   });
 });

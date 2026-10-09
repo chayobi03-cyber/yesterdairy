@@ -6,6 +6,19 @@ export const CATS: Record<string, string> = {
   sight: "관광", food: "먹거리", activity: "체험", show: "공연", parking: "주차", stay: "숙소", etc: "기타",
 };
 
+// 지도 핀/범례 색 (카테고리별). 참고한 원본 지도의 구성: 관광·숙소 / 먹거리 / 공연 / 체험.
+export const CAT_COLORS: Record<string, string> = {
+  sight: "#536b56", stay: "#536b56", food: "#b96650", show: "#567d95", activity: "#8c77a3", parking: "#6b7280", etc: "#6b7280",
+};
+export const LEGEND: { label: string; color: string; cats: string[] }[] = [
+  { label: "관광·숙소", color: "#536b56", cats: ["sight", "stay"] },
+  { label: "먹거리", color: "#b96650", cats: ["food"] },
+  { label: "공연", color: "#567d95", cats: ["show"] },
+  { label: "체험", color: "#8c77a3", cats: ["activity"] },
+  { label: "주차·기타", color: "#6b7280", cats: ["parking", "etc"] },
+];
+export const catColor = (cat?: string) => CAT_COLORS[cat ?? "etc"] ?? CAT_COLORS.etc;
+
 export function uid(prefix = "i"): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}${Date.now().toString(36).slice(-3)}`;
 }
@@ -121,6 +134,33 @@ export function currentIndex(items: PlanItem[], status: Record<string, string | 
 export function directionsUrl(p: Place, mode: "walk" | "car"): string {
   const dest = hasCoord(p) ? `${p.lat},${p.lon}` : (p.addr || p.name);
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}&travelmode=${mode === "car" ? "driving" : "walking"}`;
+}
+
+// Google 지도 다중 경유 길찾기 URL: 첫 장소 -> 마지막 장소, 사이는 경유지.
+// 웹 URL은 경유지를 최대 9개까지만 받으므로 넘치면 앞쪽 11곳만 쓰고 truncated를 true로 돌려준다.
+export function routeUrl(stops: Place[], mode: "walk" | "car"): { url: string; truncated: boolean } | null {
+  const usable = stops.filter((p) => hasCoord(p) || p.addr || p.name);
+  if (usable.length < 2) return null;
+  const MAX = 11;
+  const used = usable.slice(0, MAX);
+  const ref = (p: Place) => (hasCoord(p) ? `${p.lat},${p.lon}` : p.addr || p.name);
+  const q = new URLSearchParams({
+    api: "1",
+    origin: ref(used[0]),
+    destination: ref(used[used.length - 1]),
+    travelmode: mode === "car" ? "driving" : "walking",
+  });
+  if (used.length > 2) q.set("waypoints", used.slice(1, -1).map(ref).join("|"));
+  return { url: `https://www.google.com/maps/dir/?${q.toString()}`, truncated: usable.length > MAX };
+}
+
+// 목록을 드래그할 때 손가락 y좌표가 몇 번째 칸 위인지 (칸 중앙선을 넘으면 그 칸으로 이동)
+export function dragTargetIndex(rects: { top: number; bottom: number }[], y: number): number {
+  if (!rects.length) return 0;
+  for (let i = 0; i < rects.length; i++) {
+    if (y < (rects[i].top + rects[i].bottom) / 2) return i;
+  }
+  return rects.length - 1;
 }
 
 // 여행 정의(JSON) 검증. 가져오기·생성 시 서버에서 사용한다.

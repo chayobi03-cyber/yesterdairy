@@ -1,15 +1,21 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page, type Response } from "@playwright/test";
 
-// 가족 여행 플래너: 한 사람이 템플릿으로 여행을 만들고 장소별로 진행 기록을 남기면,
-// 같은 가족의 두 번째 구성원이 그 기록을 그대로 본다 (RLS가 가족 범위로 공유).
-// 다른 가족은 그 여행을 볼 수 없다.
+// 가족 여행 플래너: 한 사람이 템플릿으로 여행을 만들고, 한 화면에서 지도와 장소 목록을 오가며
+// 장소별로 진행 기록을 남기면, 같은 가족의 두 번째 구성원이 그 기록을 그대로 본다.
+// 다른 가족은 그 여행을 볼 수 없다. (RLS는 가족 범위로 공유한다)
 const runId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const username = `e2e_trip_${runId}`;
 const username2 = `e2e_trip_${runId}_2`;
 const outsider = `e2e_trip_${runId}_x`;
 const password = "TestPass123!";
 
+// 화면은 보고 있는 대안/날짜를 주소창(?plan=&day=)에 남기므로 쿼리를 허용한다
+const TRIP_URL = /\/trips\/[0-9a-f-]{36}(\?.*)?$/;
+
 test.describe.configure({ mode: "serial" });
+// 클릭/입력이 없는 요소를 무한정 기다리다 테스트 전체 타임아웃으로만 터지지 않게 한다
+// (원인 스텝이 로그에 남도록).
+test.use({ actionTimeout: 15_000 });
 
 function makeStep(page: Page) {
   return async (name: string, expectUrl: RegExp, run: () => Promise<void>) => {
@@ -28,7 +34,28 @@ async function signUp(page: Page, name: string) {
   await page.waitForURL("**/onboarding");
 }
 
-test("family trip: create from template -> place-by-place progress -> shared with family only", async ({ page, browser }) => {
+const pins = (page: Page) => page.locator(".leaflet-marker-icon");
+const stop = (page: Page, id: string) => page.getByTestId(`stop-${id}`);
+const stopOrder = (page: Page) => page.getByTestId(/^stop-/).evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.testid!.replace("stop-", "")));
+const openEdit = async (page: Page) => {
+  if ((await page.getByRole("button", { name: "일정 편집" }).count()) > 0) await page.getByRole("button", { name: "일정 편집" }).click();
+};
+
+// 저장은 서버 액션 POST로 나간다. 응답 수를 세어 저장이 끝났는지 판단한다
+// (networkidle은 링크 프리페치/주기적 동기화 때문에 끝나지 않는다).
+function countServerActions(page: Page) {
+  const state = { n: 0 };
+  const onResponse = (r: Response) => {
+    if (r.request().method() === "POST" && r.request().headers()["next-action"]) state.n++;
+  };
+  page.on("response", onResponse);
+  return { state, stop: () => page.off("response", onResponse) };
+}
+
+test("family trip: map + ordered stops on one page, instant edits, shared with family only", async ({ page, browser }) => {
+  // 시나리오가 길다(가입 2명 + 지도/목록/편집/동시 편집/삭제, 모두 실제 Supabase 왕복).
+  // 전역 90초보다 넉넉히 잡는다.
+  test.setTimeout(150_000);
   const step = makeStep(page);
   let inviteCode = "";
   let tripUrl = "";
@@ -47,67 +74,123 @@ test("family trip: create from template -> place-by-place progress -> shared wit
     await expect(page.getByText("아직 여행이 없어요")).toBeVisible();
   });
 
-  await step("create a trip from the Jeonju template", /\/trips\/[0-9a-f-]{36}$/, async () => {
+  await step("create a trip from the Jeonju template", TRIP_URL, async () => {
     await page.getByRole("button", { name: "+ 새 여행 만들기" }).click();
     await page.getByRole("button", { name: "여행 만들기" }).click();
-    await page.waitForURL(/\/trips\/[0-9a-f-]{36}$/);
-    tripUrl = page.url();
+    await page.waitForURL(TRIP_URL);
+    tripUrl = page.url().split("?")[0];
     await expect(page.getByRole("heading", { name: "전주 가족 1박 2일" })).toBeVisible();
-    // 첫 장소가 현재 장소로 보인다
-    await expect(page.getByRole("region", { name: /1\. 한옥마을 인근 주차/ })).toBeVisible();
   });
 
-  await step("mark the first place done and move on to the next place", /\/trips\/[0-9a-f-]{36}\?.*focus=d1-lunch/, async () => {
-    await page.getByRole("button", { name: /완료하고 다음: 전주비빔밥 점심/ }).click();
-    await page.waitForURL(/focus=d1-lunch/);
-    await expect(page.getByRole("region", { name: /2\. 전주비빔밥 점심/ })).toBeVisible();
+  await step("one page: map pins and the ordered list share the same numbers", TRIP_URL, async () => {
+    await expect(page.getByRole("region", { name: "여행 지도" })).toBeVisible();
+    // 1일차: 좌표가 있는 8곳이 지도에 번호 핀으로 (숙소는 좌표가 없어 목록에만 있다)
+    await expect(pins(page)).toHaveCount(8);
+    await expect(page.getByTitle("1. 한옥마을 인근 주차")).toBeVisible();
+    await expect(page.getByTitle("3. 전동성당")).toBeVisible();
+    await expect(page.getByTestId("now-bar")).toContainText("1. 한옥마을 인근 주차");
+    expect((await stopOrder(page)).slice(0, 3)).toEqual(["d1-parking", "d1-lunch", "d1-jeondong"]);
+    // 지도 도구: 경로 열기 링크는 Google 지도로
+    await expect(page.getByRole("link", { name: "Google 지도에서 경로 열기" })).toHaveAttribute("href", /google\.com\/maps\/dir/);
   });
 
-  await step("check-list, memo and cost are saved", /focus=d1-lunch/, async () => {
-    const card = page.getByRole("region", { name: /2\. 전주비빔밥 점심/ });
-    // 저장은 서버 액션 POST로 나간다. 응답이 몇 번 왔는지 세어서 저장이 끝났는지 판단한다
-    // (networkidle은 링크 프리페치/자동 새로고침 때문에 끝나지 않는다).
-    let actionResponses = 0;
-    const countAction = (r: import("@playwright/test").Response) => {
-      if (r.request().method() === "POST" && r.request().headers()["next-action"]) actionResponses++;
-    };
-    page.on("response", countAction);
-    await card.getByRole("checkbox").first().check();
-    await card.getByLabel(/메모/).fill(`예약 완료 ${runId}`);
-    await card.getByLabel(/지출/).fill("45000");
-    await card.getByLabel(/지출/).blur();
-    await page.getByRole("button", { name: "📍 도착" }).click();
-    await expect(page.getByRole("button", { name: "📍 도착" })).toHaveAttribute("aria-pressed", "true");
-    // 연달아 누른 저장 요청은 서버 액션 대기열에서 순서대로 처리된다. 끝나기 전에 새로고침하면
-    // 대기 중인 요청이 사라지므로(사용자도 마찬가지), 4건(체크, 메모, 지출, 상태) 응답을 기다린다.
-    await expect.poll(() => actionResponses, { timeout: 20_000 }).toBeGreaterThanOrEqual(4);
-    page.off("response", countAction);
+  const actions = countServerActions(page);
+
+  await step("complete a stop with one tap: instant, moves on to the next stop", TRIP_URL, async () => {
+    await page.getByRole("button", { name: "한옥마을 인근 주차 완료 처리" }).click();
+    // 서버 응답을 기다리지 않고 바로 반영된다
+    await expect(page.getByRole("button", { name: "한옥마을 인근 주차 완료 취소" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("now-bar")).toContainText("2. 전주비빔밥 점심");
+    await expect(page.getByTitle("1. 한옥마을 인근 주차")).toHaveText("✓");
+    await expect(page.getByRole("region", { name: "전주비빔밥 점심 상세" })).toBeVisible();
+  });
+
+  await step("check-list, memo, cost and status are saved", TRIP_URL, async () => {
+    const detail = page.getByRole("region", { name: "전주비빔밥 점심 상세" });
+    await detail.getByRole("checkbox").first().check();
+    await detail.getByLabel(/메모/).fill(`예약 완료 ${runId}`);
+    await detail.getByLabel(/지출/).fill("45000");
+    await detail.getByLabel(/지출/).blur();
+    await detail.getByRole("button", { name: "📍 도착" }).click();
+    await expect(detail.getByRole("button", { name: "📍 도착" })).toHaveAttribute("aria-pressed", "true");
+    // 연달아 누른 저장 요청(완료, 체크, 메모, 지출, 상태)이 모두 끝날 때까지 기다린 뒤 새로고침한다
+    await expect.poll(() => actions.state.n, { timeout: 20_000 }).toBeGreaterThanOrEqual(5);
+    actions.stop();
     await expect(page.getByText("저장 중…")).toHaveCount(0);
-    // DB에 남았는지 새로고침해서 확인 (재시도)
     await expect(async () => {
       await page.reload();
-      await expect(card.getByLabel(/메모/)).toHaveValue(`예약 완료 ${runId}`, { timeout: 2_000 });
-      await expect(card.getByRole("checkbox").first()).toBeChecked({ timeout: 2_000 });
-      await expect(page.getByRole("button", { name: "📍 도착" })).toHaveAttribute("aria-pressed", "true", { timeout: 2_000 });
+      const d = page.getByRole("region", { name: "전주비빔밥 점심 상세" });
+      await expect(d.getByLabel(/메모/)).toHaveValue(`예약 완료 ${runId}`, { timeout: 2_000 });
+      await expect(d.getByRole("checkbox").first()).toBeChecked({ timeout: 2_000 });
+      await expect(d.getByRole("button", { name: "📍 도착" })).toHaveAttribute("aria-pressed", "true", { timeout: 2_000 });
+      await expect(page.getByRole("button", { name: "한옥마을 인근 주차 완료 취소" })).toBeVisible({ timeout: 2_000 });
       await expect(page.getByText("누적 지출 기록 45,000원")).toBeVisible({ timeout: 2_000 });
     }).toPass({ timeout: 20_000 });
   });
 
-  await step("plan view: required places cannot be deleted or swapped", /view=plan/, async () => {
-    await page.getByRole("tab", { name: "일정" }).click();
-    await page.waitForURL(/view=plan/);
-    // 필수 방문지(전동성당)에는 삭제 버튼이 없다
-    const jeondong = page.locator("div.rounded-2xl", { hasText: "전동성당" }).filter({ has: page.getByRole("button", { name: "제외" }) }).first();
-    await expect(jeondong.getByRole("button", { name: "삭제" })).toHaveCount(0);
+  await step("tapping a map pin selects that stop in the list", TRIP_URL, async () => {
+    // 가까운 핀끼리 겹칠 수 있어 실제 클릭 대신 핀 요소에 클릭 이벤트를 보낸다
+    await page.getByTitle("3. 전동성당").dispatchEvent("click");
+    await expect(page.getByRole("region", { name: "전동성당 상세" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "전주비빔밥 점심 상세" })).toHaveCount(0);
+    // 목록에서 다른 장소를 누르면 그쪽으로
+    await stop(page, "d1-gyeonggijeon").getByRole("button", { name: /상세 열기/ }).click();
+    await expect(page.getByRole("region", { name: "경기전 상세" })).toBeVisible();
+  });
+
+  await step("day and plan switching update both the list and the map", TRIP_URL, async () => {
+    await page.getByRole("button", { name: "2일차" }).click();
+    await expect(page.getByTestId("now-bar")).toContainText("1. 전주향교");
+    await expect(pins(page)).toHaveCount(3);
+    await page.getByRole("button", { name: "1일차" }).click();
+    await expect(pins(page)).toHaveCount(8);
+
+    await page.getByRole("combobox", { name: "여행 대안" }).selectOption("experience");
+    await expect(stop(page, "d1-hanok-exp")).toBeVisible();
+    await page.getByRole("combobox", { name: "여행 대안" }).selectOption("balanced");
+    await expect(stop(page, "d1-hanok-exp")).toHaveCount(0);
+  });
+
+  await step("edit mode: required places are protected", TRIP_URL, async () => {
+    await openEdit(page);
+    await expect(stop(page, "d1-jeondong").getByRole("button", { name: "삭제" })).toHaveCount(0);
     // 전동성당 바로 다음이 경기전(둘 다 필수) -> 순서 교환은 거부된다
-    await jeondong.getByRole("button", { name: "아래로" }).click();
+    await stop(page, "d1-jeondong").getByRole("button", { name: "아래로" }).click();
     await expect(page.getByRole("alert").filter({ hasText: "필수 방문지끼리의 순서" })).toBeVisible();
   });
 
-  await step("excluding an optional place and changing its duration", /view=plan/, async () => {
-    const snack = page.locator("div.rounded-2xl", { hasText: "초코파이·길거리 간식" }).filter({ has: page.getByRole("button", { name: "제외" }) }).first();
-    await snack.getByRole("button", { name: "제외" }).click();
-    await expect(page.locator("div.rounded-2xl", { hasText: "초코파이·길거리 간식" }).filter({ hasText: "제외됨" }).first()).toBeVisible();
+  await step("edit mode: exclude, reorder and add - the map follows instantly", TRIP_URL, async () => {
+    await stop(page, "d1-snack").getByRole("button", { name: "제외", exact: true }).click();
+    await expect(stop(page, "d1-snack")).toContainText("제외됨");
+    await expect(pins(page)).toHaveCount(7);
+
+    await stop(page, "d1-lunch").getByRole("button", { name: "위로" }).click();
+    await expect.poll(async () => (await stopOrder(page))[0]).toBe("d1-lunch");
+    await expect(page.getByTitle("1. 전주비빔밥 점심")).toBeVisible(); // 번호도 순서를 따라간다
+
+    await page.getByLabel("일정 이름").fill("카페 휴식");
+    await page.getByRole("button", { name: "장소 없는 일정 추가" }).click();
+    await expect(page.getByText("카페 휴식", { exact: true })).toBeVisible();
+
+    await page.getByRole("button", { name: "+ 내 장소 만들기" }).click();
+    const form = page.getByRole("form", { name: "내 장소 만들기" });
+    await form.getByLabel("장소 이름").fill(`E2E카페 ${runId}`);
+    await form.getByLabel("위도").fill("35.8140");
+    await form.getByLabel("경도").fill("127.1510");
+    await form.getByRole("button", { name: "저장" }).click();
+    await expect(page.getByText(`E2E카페 ${runId}`).first()).toBeVisible();
+    await expect(pins(page)).toHaveCount(8); // 7 + 새 장소
+
+    // 보기 모드로 돌아가면 제외된 항목은 숨겨진다
+    await page.getByRole("button", { name: "편집 끝내기" }).click();
+    await expect(stop(page, "d1-snack")).toHaveCount(0);
+  });
+
+  await step("phone width: no horizontal overflow", TRIP_URL, async () => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+    await page.setViewportSize({ width: 1280, height: 720 });
   });
 
   await step("invite code is available from the family screen", /\/family$/, async () => {
@@ -130,36 +213,45 @@ test("family trip: create from template -> place-by-place progress -> shared wit
 
       await page2.goto(tripUrl);
       await expect(page2.getByRole("heading", { name: "전주 가족 1박 2일" })).toBeVisible();
-      await page2.goto(`${tripUrl}?focus=d1-lunch`);
-      const card2 = page2.getByRole("region", { name: /2\. 전주비빔밥 점심/ });
-      await expect(card2.getByLabel(/메모/)).toHaveValue(`예약 완료 ${runId}`);
-      await expect(page2.getByRole("button", { name: "📍 도착" })).toHaveAttribute("aria-pressed", "true");
+      await expect(stop(page2, "d1-parking")).toContainText("완료");
+      // 첫 번째 구성원이 쓴 메모/상태가 그대로 보인다
+      // 점심이 "지금 가야 할 곳"이라 상세가 이미 열려 있다(버튼은 "닫기"). 닫혀 있을 때만 연다.
+      const detail2 = page2.getByRole("region", { name: "전주비빔밥 점심 상세" });
+      if ((await detail2.count()) === 0) await stop(page2, "d1-lunch").getByRole("button", { name: /상세 열기/ }).click();
+      await expect(detail2).toBeVisible();
+      await expect(detail2.getByLabel(/메모/)).toHaveValue(`예약 완료 ${runId}`);
+      await expect(detail2.getByRole("button", { name: "📍 도착" })).toHaveAttribute("aria-pressed", "true");
 
       // 두 번째 구성원이 쓴 메모도 첫 번째 사람에게 보인다
-      await card2.getByLabel(/메모/).fill(`두 번째 구성원 메모 ${runId}`);
-      await card2.getByLabel(/메모/).blur();
-      await page2.waitForTimeout(500);
-      await page.goto(`${tripUrl}?focus=d1-lunch`);
-      await expect(page.getByLabel(/메모/)).toHaveValue(`두 번째 구성원 메모 ${runId}`);
+      await detail2.getByLabel(/메모/).fill(`두 번째 구성원 메모 ${runId}`);
+      await detail2.getByLabel(/메모/).blur();
+      await expect(async () => {
+        await page.goto(tripUrl);
+        await expect(page.getByLabel(/메모/).first()).toHaveValue(`두 번째 구성원 메모 ${runId}`, { timeout: 2_000 });
+      }).toPass({ timeout: 20_000 });
 
       // 동시 편집: 두 사람이 같은 날 일정에서 서로 다른 항목을 동시에 제외해도 둘 다 남아야 한다
-      // (낙관적 잠금: 충돌하면 최신 데이터에 같은 변경을 다시 적용)
-      const row = (pg: Page, name: string) =>
-        pg.locator("div.rounded-2xl", { hasText: name }).filter({ has: pg.getByRole("button", { name: /^(제외|포함)$/ }) }).first();
-      await page.goto(`${tripUrl}?view=plan`);
-      await page2.goto(`${tripUrl}?view=plan`);
+      await page.goto(tripUrl);
+      await page2.goto(tripUrl);
+      await openEdit(page);
+      await openEdit(page2);
+      const both = countServerActions(page);
       await Promise.all([
-        row(page, "저녁 식사").getByRole("button", { name: "제외" }).click(),
-        row(page2, "한옥마을 골목 산책").getByRole("button", { name: "제외" }).click(),
+        stop(page, "d1-dinner").getByRole("button", { name: "제외", exact: true }).click(),
+        stop(page2, "d1-hanok-walk").getByRole("button", { name: "제외", exact: true }).click(),
       ]);
-      await expect(row(page, "저녁 식사").getByText("제외됨")).toBeVisible();
-      await expect(row(page2, "한옥마을 골목 산책").getByText("제외됨")).toBeVisible();
-      await page.goto(`${tripUrl}?view=plan`);
-      await page2.goto(`${tripUrl}?view=plan`);
-      for (const pg of [page, page2]) {
-        await expect(row(pg, "저녁 식사").getByText("제외됨")).toBeVisible();
-        await expect(row(pg, "한옥마을 골목 산책").getByText("제외됨")).toBeVisible();
-      }
+      await expect(stop(page, "d1-dinner")).toContainText("제외됨");
+      await expect(stop(page2, "d1-hanok-walk")).toContainText("제외됨");
+      await expect.poll(() => both.state.n, { timeout: 20_000 }).toBeGreaterThanOrEqual(1);
+      both.stop();
+      await expect(async () => {
+        for (const pg of [page, page2]) {
+          await pg.goto(tripUrl);
+          await openEdit(pg);
+          await expect(stop(pg, "d1-dinner")).toContainText("제외됨", { timeout: 2_000 });
+          await expect(stop(pg, "d1-hanok-walk")).toContainText("제외됨", { timeout: 2_000 });
+        }
+      }).toPass({ timeout: 25_000 });
 
       // 만든 사람이 아니면 삭제 버튼이 없다
       await expect(page2.getByRole("button", { name: "이 여행 삭제" })).toHaveCount(0);
