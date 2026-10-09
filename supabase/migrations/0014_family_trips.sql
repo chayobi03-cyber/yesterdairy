@@ -127,3 +127,9 @@ revoke execute on function is_in_family(uuid, uuid) from public, anon;
 revoke execute on function is_trip_member(uuid, uuid) from public, anon;
 grant execute on function is_in_family(uuid, uuid) to authenticated;
 grant execute on function is_trip_member(uuid, uuid) to authenticated;
+
+-- trips UPDATE 정책은 행 단위라 created_by / family_id 변경을 막지 못한다.
+-- 그대로 두면 가족 누구나 created_by를 자기로 바꿔 "만든 사람만 삭제" 규칙을
+-- 우회하거나 여행을 다른 가족으로 옮길 수 있다. 수정 가능한 컬럼만 허용한다.
+revoke update on trips from authenticated, anon;
+grant update (title, def, start_date, updated_at) on trips to authenticated;
