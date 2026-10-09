@@ -20,6 +20,8 @@ export type PlaceCardData = {
   checks: string[];
   walkUrl: string | null;
   carUrl: string | null;
+  // 서버 행의 updated_at. 바뀌면 서버가 새 상태를 보냈다는 뜻이라 화면 상태를 맞춘다.
+  version: string;
   status: ProgressStatus | null;
   checked: Record<string, boolean>;
   memo: string;
@@ -34,17 +36,66 @@ export function PlaceCard(d: PlaceCardData) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState("");
-  const [memo, setMemo] = useState(d.memo);
-  const [cost, setCost] = useState(d.cost == null ? "" : String(d.cost));
 
-  function run(patch: Parameters<typeof updateProgress>[2], after?: () => void) {
+  // 탭하면 서버 응답을 기다리지 않고 바로 반영한다 (체크박스가 되돌아가 보이는 것 방지).
+  // 서버가 새 상태를 보내면(version 변경) 가족이 바꾼 값까지 포함해 다시 맞춘다.
+  // 단, 입력 중인 메모/지출(저장된 값과 다른 값)은 덮어쓰지 않는다.
+  const [seen, setSeen] = useState(d.version);
+  const [status, setStatus] = useState(d.status);
+  const [checked, setChecked] = useState(d.checked);
+  const [memo, setMemo] = useState(d.memo);
+  const [savedMemo, setSavedMemo] = useState(d.memo);
+  const [cost, setCost] = useState(d.cost == null ? "" : String(d.cost));
+  const [savedCost, setSavedCost] = useState(d.cost == null ? "" : String(d.cost));
+  if (seen !== d.version) {
+    setSeen(d.version);
+    setStatus(d.status);
+    setChecked(d.checked);
+    const serverCost = d.cost == null ? "" : String(d.cost);
+    if (memo === savedMemo) setMemo(d.memo);
+    setSavedMemo(d.memo);
+    if (cost === savedCost) setCost(serverCost);
+    setSavedCost(serverCost);
+  }
+
+  // revert: 실패 시 낙관적 변경을 되돌리는 함수
+  function run(patch: Parameters<typeof updateProgress>[2], revert: () => void, after?: () => void) {
     setError("");
     start(async () => {
       const r = await updateProgress(d.tripId, d.itemId, patch);
-      if (!r.ok) return setError(r.error);
+      if (!r.ok) {
+        revert();
+        return setError(r.error);
+      }
       if (after) after();
       else router.refresh();
     });
+  }
+
+  function setStatusTo(next: ProgressStatus | null, after?: () => void) {
+    const prev = status;
+    setStatus(next);
+    run({ status: next }, () => setStatus(prev), after);
+  }
+
+  function toggleCheck(i: number, value: boolean) {
+    const prev = checked;
+    setChecked({ ...checked, [String(i)]: value });
+    run({ checkIndex: i, checked: value }, () => setChecked(prev));
+  }
+
+  function saveMemo() {
+    if (memo === savedMemo) return;
+    const prev = savedMemo;
+    setSavedMemo(memo);
+    run({ memo }, () => setSavedMemo(prev));
+  }
+
+  function saveCost() {
+    if (cost === savedCost) return;
+    const prev = savedCost;
+    setSavedCost(cost);
+    run({ cost: cost === "" ? null : Number(cost) }, () => setSavedCost(prev));
   }
 
   const btn = "rounded-xl border px-3 py-2 text-sm disabled:opacity-50";
@@ -76,16 +127,15 @@ export function PlaceCard(d: PlaceCardData) {
           <button
             key={s}
             type="button"
-            disabled={pending}
-            aria-pressed={d.status === s}
-            onClick={() => run({ status: s })}
-            className={`${btn} ${d.status === s ? "border-accent-400 bg-accent-400 text-white" : "border-line"}`}
+            aria-pressed={status === s}
+            onClick={() => setStatusTo(s)}
+            className={`${btn} ${status === s ? "border-accent-400 bg-accent-400 text-white" : "border-line"}`}
           >
             {STATUS_LABEL[s]}
           </button>
         ))}
-        {d.status && (
-          <button type="button" disabled={pending} onClick={() => run({ status: null })} className={`${btn} border-transparent text-neutral-400`}>
+        {status && (
+          <button type="button" onClick={() => setStatusTo(null)} className={`${btn} border-transparent text-neutral-400`}>
             되돌리기
           </button>
         )}
@@ -99,9 +149,8 @@ export function PlaceCard(d: PlaceCardData) {
               <input
                 type="checkbox"
                 className="h-5 w-5 accent-[var(--accent-500)]"
-                checked={!!d.checked[String(i)]}
-                disabled={pending}
-                onChange={(e) => run({ checkIndex: i, checked: e.target.checked })}
+                checked={!!checked[String(i)]}
+                onChange={(e) => toggleCheck(i, e.target.checked)}
               />
               {c}
             </label>
@@ -126,7 +175,7 @@ export function PlaceCard(d: PlaceCardData) {
           value={memo}
           maxLength={2000}
           onChange={(e) => setMemo(e.target.value)}
-          onBlur={() => memo !== d.memo && run({ memo })}
+          onBlur={saveMemo}
           placeholder="예약번호, 주차 위치, 느낀 점…"
           className="mt-1 min-h-20 w-full rounded-xl border border-line px-3 py-2 text-sm outline-none focus:border-accent-300"
         />
@@ -140,10 +189,7 @@ export function PlaceCard(d: PlaceCardData) {
           step={100}
           value={cost}
           onChange={(e) => setCost(e.target.value)}
-          onBlur={() => {
-            const next = cost === "" ? null : Number(cost);
-            if (next !== d.cost) run({ cost: next });
-          }}
+          onBlur={saveCost}
           className="mt-1 w-full rounded-xl border border-line px-3 py-2 text-sm outline-none focus:border-accent-300"
         />
       </label>
@@ -154,7 +200,7 @@ export function PlaceCard(d: PlaceCardData) {
         <button
           type="button"
           disabled={pending}
-          onClick={() => run({ status: "done" }, () => router.push(d.nextHref!))}
+          onClick={() => setStatusTo("done", () => router.push(d.nextHref!))}
           className="rounded-2xl bg-accent-400 px-4 py-3 text-sm font-medium text-white shadow-sm shadow-accent-200/60 disabled:opacity-50"
         >
           완료하고 다음: {d.nextName} ▶
@@ -162,8 +208,7 @@ export function PlaceCard(d: PlaceCardData) {
       ) : (
         <button
           type="button"
-          disabled={pending}
-          onClick={() => run({ status: "done" })}
+          onClick={() => setStatusTo("done")}
           className="rounded-2xl bg-accent-400 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
         >
           마지막 장소 완료 🎉

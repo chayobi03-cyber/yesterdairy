@@ -44,4 +44,5 @@ export type ProgressRow = {
   checks: Record<string, boolean>;
   memo: string;
   cost: number | null;
+  updated_at: string;
 };

@@ -71,10 +71,14 @@ test("family trip: create from template -> place-by-place progress -> shared wit
     await card.getByLabel(/지출/).blur();
     await page.getByRole("button", { name: "📍 도착" }).click();
     await expect(page.getByRole("button", { name: "📍 도착" })).toHaveAttribute("aria-pressed", "true");
-    await page.reload();
-    await expect(card.getByLabel(/메모/)).toHaveValue(`예약 완료 ${runId}`);
-    await expect(card.getByRole("checkbox").first()).toBeChecked();
-    await expect(page.getByText("누적 지출 기록 45,000원")).toBeVisible();
+    // 저장은 서버 액션 왕복이라 아직 진행 중일 수 있다 -> 새로고침해서 DB에 남았는지 재시도하며 확인
+    await expect(async () => {
+      await page.reload();
+      await expect(card.getByLabel(/메모/)).toHaveValue(`예약 완료 ${runId}`, { timeout: 2_000 });
+      await expect(card.getByRole("checkbox").first()).toBeChecked({ timeout: 2_000 });
+      await expect(page.getByRole("button", { name: "📍 도착" })).toHaveAttribute("aria-pressed", "true", { timeout: 2_000 });
+      await expect(page.getByText("누적 지출 기록 45,000원")).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
   });
 
   await step("plan view: required places cannot be deleted or swapped", /view=plan/, async () => {
@@ -126,6 +130,25 @@ test("family trip: create from template -> place-by-place progress -> shared wit
       await page.goto(`${tripUrl}?focus=d1-lunch`);
       await expect(page.getByLabel(/메모/)).toHaveValue(`두 번째 구성원 메모 ${runId}`);
 
+      // 동시 편집: 두 사람이 같은 날 일정에서 서로 다른 항목을 동시에 제외해도 둘 다 남아야 한다
+      // (낙관적 잠금: 충돌하면 최신 데이터에 같은 변경을 다시 적용)
+      const row = (pg: Page, name: string) =>
+        pg.locator("div.rounded-2xl", { hasText: name }).filter({ has: pg.getByRole("button", { name: /^(제외|포함)$/ }) }).first();
+      await page.goto(`${tripUrl}?view=plan`);
+      await page2.goto(`${tripUrl}?view=plan`);
+      await Promise.all([
+        row(page, "저녁 식사").getByRole("button", { name: "제외" }).click(),
+        row(page2, "한옥마을 골목 산책").getByRole("button", { name: "제외" }).click(),
+      ]);
+      await expect(row(page, "저녁 식사").getByText("제외됨")).toBeVisible();
+      await expect(row(page2, "한옥마을 골목 산책").getByText("제외됨")).toBeVisible();
+      await page.goto(`${tripUrl}?view=plan`);
+      await page2.goto(`${tripUrl}?view=plan`);
+      for (const pg of [page, page2]) {
+        await expect(row(pg, "저녁 식사").getByText("제외됨")).toBeVisible();
+        await expect(row(pg, "한옥마을 골목 산책").getByText("제외됨")).toBeVisible();
+      }
+
       // 만든 사람이 아니면 삭제 버튼이 없다
       await expect(page2.getByRole("button", { name: "이 여행 삭제" })).toHaveCount(0);
     } finally {
@@ -143,8 +166,10 @@ test("family trip: create from template -> place-by-place progress -> shared wit
       await page3.getByRole("button", { name: "가족 만들기" }).click();
       await page3.waitForURL((url) => !url.pathname.includes("/onboarding"), { timeout: 10_000 });
 
-      const res = await page3.goto(tripUrl);
-      expect(res?.status()).toBe(404);
+      await page3.goto(tripUrl);
+      // RLS 때문에 여행이 조회되지 않으면 notFound() -> 기본 404 화면
+      await expect(page3.getByRole("heading", { name: "전주 가족 1박 2일" })).toHaveCount(0);
+      await expect(page3.getByText("This page could not be found")).toBeVisible();
       await page3.goto("/trips");
       await expect(page3.getByText("아직 여행이 없어요")).toBeVisible();
     } finally {

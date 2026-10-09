@@ -16,7 +16,7 @@ export async function loadTrip(supabase: SupabaseClient, tripId: string): Promis
 export async function loadTripState(supabase: SupabaseClient, tripId: string) {
   const [{ data: overrides }, { data: progress }] = await Promise.all([
     supabase.from("trip_day_items").select("plan_id, day, items").eq("trip_id", tripId),
-    supabase.from("trip_progress").select("item_id, status, checks, memo, cost").eq("trip_id", tripId),
+    supabase.from("trip_progress").select("item_id, status, checks, memo, cost, updated_at").eq("trip_id", tripId),
   ]);
   const ov = new Map<string, PlanItem[]>();
   for (const o of overrides ?? []) ov.set(`${o.plan_id}:${o.day}`, o.items as PlanItem[]);

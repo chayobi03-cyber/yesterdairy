@@ -3,10 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/get-current-user";
-import { dayItems, loadTrip, loadTripState } from "@/lib/trip/data";
-import { move, uid, validCoord, validateTrip } from "@/lib/trip/engine";
+import { loadTrip } from "@/lib/trip/data";
+import { CONFLICT_MESSAGE, MAX_CAS_ATTEMPTS, nextVersion } from "@/lib/trip/cas";
+import { applyDayOp, buildPlace, MAX_PLACES, type DayOp, type NewPlaceInput } from "@/lib/trip/day-ops";
+import { validateTrip } from "@/lib/trip/engine";
+import { applyProgressPatch, EMPTY_PROGRESS, type ProgressPatch, type ProgressState } from "@/lib/trip/progress";
 import { jeonjuTemplate } from "@/lib/trip/templates/jeonju";
-import type { Place, PlanItem, ProgressStatus, TripDef } from "@/lib/trip/types";
+import type { PlanItem, TripDef } from "@/lib/trip/types";
 
 // 사용자 입력 오류는 throw 대신 결과 객체로 돌려준다 (프로덕션에서 throw 메시지는 가려짐).
 export type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -88,9 +91,14 @@ export async function deleteTrip(tripId: string): Promise<Result> {
   return { ok: true };
 }
 
-/* ---------- 장소별 진행 기록 ---------- */
+/* ---------- 동시 편집 (낙관적 잠금) ----------
+ * 읽은 updated_at과 같을 때만 저장하고, 다르면(다른 가족이 먼저 저장) 최신 데이터를
+ * 다시 읽어 같은 변경을 다시 적용한다. 그래서 두 사람이 동시에 서로 다른 항목을
+ * 고쳐도 둘 다 반영된다. */
 
-type ProgressPatch = Partial<{ status: ProgressStatus | null; checkIndex: number; checked: boolean; memo: string; cost: number | null }>;
+const UNIQUE_VIOLATION = "23505";
+
+/* ---------- 장소별 진행 기록 ---------- */
 
 export async function updateProgress(tripId: string, itemId: string, patch: ProgressPatch): Promise<Result> {
   const c = await ctx();
@@ -98,61 +106,50 @@ export async function updateProgress(tripId: string, itemId: string, patch: Prog
   if (!ID_RE.test(itemId)) return { ok: false, error: "잘못된 항목이에요." };
   const { supabase, user } = c;
 
-  const { data: existing } = await supabase
-    .from("trip_progress")
-    .select("status, checks, memo, cost")
-    .eq("trip_id", tripId)
-    .eq("item_id", itemId)
-    .maybeSingle();
+  for (let attempt = 0; attempt < MAX_CAS_ATTEMPTS; attempt++) {
+    const { data: existing, error: readError } = await supabase
+      .from("trip_progress")
+      .select("status, checks, memo, cost, updated_at")
+      .eq("trip_id", tripId)
+      .eq("item_id", itemId)
+      .maybeSingle();
+    if (readError) return { ok: false, error: readError.message };
 
-  const row = {
-    trip_id: tripId,
-    item_id: itemId,
-    status: existing?.status ?? null,
-    checks: (existing?.checks ?? {}) as Record<string, boolean>,
-    memo: existing?.memo ?? "",
-    cost: existing?.cost ?? null,
-    updated_by: user.id,
-    updated_at: new Date().toISOString(),
-  };
+    const cur: ProgressState = existing
+      ? { status: existing.status, checks: existing.checks ?? {}, memo: existing.memo ?? "", cost: existing.cost }
+      : EMPTY_PROGRESS;
+    const next = applyProgressPatch(cur, patch);
+    if (!next.ok) return next;
 
-  if ("status" in patch) {
-    if (patch.status != null && !["arrived", "done", "skipped"].includes(patch.status)) return { ok: false, error: "잘못된 상태예요." };
-    row.status = patch.status ?? null;
-  }
-  if (patch.checkIndex != null) {
-    if (!Number.isInteger(patch.checkIndex) || patch.checkIndex < 0 || patch.checkIndex > 50) return { ok: false, error: "잘못된 체크 항목이에요." };
-    row.checks = { ...row.checks, [String(patch.checkIndex)]: !!patch.checked };
-  }
-  if ("memo" in patch) {
-    if ((patch.memo ?? "").length > 2000) return { ok: false, error: "메모는 2000자까지 쓸 수 있어요." };
-    row.memo = patch.memo ?? "";
-  }
-  if ("cost" in patch) {
-    if (patch.cost != null && !(Number.isInteger(patch.cost) && patch.cost >= 0 && patch.cost <= 100_000_000)) {
-      return { ok: false, error: "지출은 0 이상의 정수로 입력해주세요." };
+    const values = { ...next.state, updated_by: user.id, updated_at: nextVersion(existing?.updated_at, Date.now()) };
+
+    if (existing) {
+      const { data: updated, error } = await supabase
+        .from("trip_progress")
+        .update(values)
+        .eq("trip_id", tripId)
+        .eq("item_id", itemId)
+        .eq("updated_at", existing.updated_at)
+        .select("item_id");
+      if (error) return { ok: false, error: error.message };
+      if (updated?.length) break; // 성공
+    } else {
+      const { error } = await supabase.from("trip_progress").insert({ trip_id: tripId, item_id: itemId, ...values });
+      if (!error) break;
+      if (error.code !== UNIQUE_VIOLATION) return { ok: false, error: error.message };
     }
-    row.cost = patch.cost ?? null;
+    if (attempt === MAX_CAS_ATTEMPTS - 1) return { ok: false, error: CONFLICT_MESSAGE };
   }
 
-  const { error } = await supabase.from("trip_progress").upsert(row, { onConflict: "trip_id,item_id" });
-  if (error) return { ok: false, error: error.message };
   revalidatePath(`/trips/${tripId}`);
   return { ok: true };
 }
 
 /* ---------- 일정 편집 ---------- */
 
-export type DayOp =
-  | { type: "toggle"; itemId: string }
-  | { type: "move"; index: number; dir: 1 | -1 }
-  | { type: "dur"; itemId: string; delta: number }
-  | { type: "add"; placeId: string }
-  | { type: "addRest"; title: string }
-  | { type: "remove"; itemId: string }
-  | { type: "reset" };
+export type { DayOp } from "@/lib/trip/day-ops";
 
-export async function editDay(tripId: string, planId: string, day: number, op: DayOp): Promise<Result> {
+export async function editDay(tripId: string, planId: string, day: number, op: DayOp | { type: "reset" }): Promise<Result> {
   const c = await ctx();
   if (!c) return NOT_SIGNED_IN;
   const { supabase, user } = c;
@@ -161,7 +158,6 @@ export async function editDay(tripId: string, planId: string, day: number, op: D
   if (!trip) return { ok: false, error: "여행을 찾을 수 없어요." };
   const def = trip.def;
   if (!def.plans[planId] || !def.days.some((d) => d.n === day)) return { ok: false, error: "잘못된 일정이에요." };
-  const mandatory = def.mandatory ?? [];
 
   if (op.type === "reset") {
     const { error } = await supabase.from("trip_day_items").delete().eq("trip_id", tripId).eq("plan_id", planId).eq("day", day);
@@ -170,95 +166,80 @@ export async function editDay(tripId: string, planId: string, day: number, op: D
     return { ok: true };
   }
 
-  const { ov } = await loadTripState(supabase, tripId);
-  let items: PlanItem[] = structuredClone(dayItems(def, ov, planId, day));
+  const opCtx = { places: def.places, mandatory: def.mandatory ?? [] };
 
-  switch (op.type) {
-    case "toggle": {
-      const it = items.find((i) => i.id === op.itemId);
-      if (!it) return { ok: false, error: "항목을 찾을 수 없어요." };
-      it.included = it.included === false;
-      break;
+  for (let attempt = 0; attempt < MAX_CAS_ATTEMPTS; attempt++) {
+    const { data: existing, error: readError } = await supabase
+      .from("trip_day_items")
+      .select("items, updated_at")
+      .eq("trip_id", tripId)
+      .eq("plan_id", planId)
+      .eq("day", day)
+      .maybeSingle();
+    if (readError) return { ok: false, error: readError.message };
+
+    // 편집본이 없으면 기본 일정을 출발점으로 쓴다
+    const base: PlanItem[] = existing ? (existing.items as PlanItem[]) : (def.plans[planId].days[String(day)] ?? []);
+    const next = applyDayOp(base, op, opCtx);
+    if (!next.ok) return next;
+
+    const values = { items: next.items, updated_by: user.id, updated_at: nextVersion(existing?.updated_at, Date.now()) };
+
+    if (existing) {
+      const { data: updated, error } = await supabase
+        .from("trip_day_items")
+        .update(values)
+        .eq("trip_id", tripId)
+        .eq("plan_id", planId)
+        .eq("day", day)
+        .eq("updated_at", existing.updated_at)
+        .select("day");
+      if (error) return { ok: false, error: error.message };
+      if (updated?.length) break;
+    } else {
+      const { error } = await supabase.from("trip_day_items").insert({ trip_id: tripId, plan_id: planId, day, ...values });
+      if (!error) break;
+      if (error.code !== UNIQUE_VIOLATION) return { ok: false, error: error.message };
     }
-    case "move": {
-      const r = move(items, op.index, op.dir, mandatory);
-      if (!r.ok) return { ok: false, error: r.reason };
-      items = r.items;
-      break;
-    }
-    case "dur": {
-      const it = items.find((i) => i.id === op.itemId);
-      if (!it) return { ok: false, error: "항목을 찾을 수 없어요." };
-      const base = it.dur ?? (it.p ? def.places.find((p) => p.id === it.p)?.dur : undefined) ?? 30;
-      it.dur = Math.min(600, Math.max(5, base + Math.trunc(op.delta)));
-      break;
-    }
-    case "add": {
-      if (!def.places.some((p) => p.id === op.placeId)) return { ok: false, error: "알 수 없는 장소예요." };
-      if (items.length >= 60) return { ok: false, error: "하루에 넣을 수 있는 항목이 가득 찼어요." };
-      items.push({ id: uid("it"), p: op.placeId });
-      break;
-    }
-    case "addRest": {
-      const title = op.title.trim().slice(0, 60);
-      if (!title) return { ok: false, error: "일정 이름을 입력해주세요." };
-      items.push({ id: uid("it"), rest: title, dur: 30 });
-      break;
-    }
-    case "remove": {
-      const it = items.find((i) => i.id === op.itemId);
-      if (it?.p && mandatory.includes(it.p)) return { ok: false, error: "필수 방문지는 삭제할 수 없어요. 제외로 바꿔주세요." };
-      items = items.filter((i) => i.id !== op.itemId);
-      break;
-    }
+    if (attempt === MAX_CAS_ATTEMPTS - 1) return { ok: false, error: CONFLICT_MESSAGE };
   }
 
-  const { error } = await supabase
-    .from("trip_day_items")
-    .upsert({ trip_id: tripId, plan_id: planId, day, items, updated_by: user.id, updated_at: new Date().toISOString() }, { onConflict: "trip_id,plan_id,day" });
-  if (error) return { ok: false, error: error.message };
   revalidatePath(`/trips/${tripId}`);
   return { ok: true };
 }
 
 /* ---------- 내 장소 ---------- */
 
-export async function addPlace(
-  tripId: string,
-  input: { name: string; cat: string; addr: string; lat: string; lon: string; dur: string; hours: string; desc: string; note: string; planId: string; day: number; addNow: boolean },
-): Promise<Result> {
+export async function addPlace(tripId: string, input: NewPlaceInput & { planId: string; day: number; addNow: boolean }): Promise<Result> {
   const c = await ctx();
   if (!c) return NOT_SIGNED_IN;
   const { supabase } = c;
 
-  const name = input.name.trim().slice(0, 80);
-  if (!name) return { ok: false, error: "이름은 필수예요." };
-  const hasLat = input.lat.trim() !== "";
-  const hasLon = input.lon.trim() !== "";
-  if (hasLat !== hasLon) return { ok: false, error: "위도와 경도를 함께 입력하거나 둘 다 비워주세요." };
-  const lat = hasLat ? Number(input.lat) : undefined;
-  const lon = hasLon ? Number(input.lon) : undefined;
-  if (hasLat && !validCoord(lat, lon)) return { ok: false, error: "좌표가 올바르지 않아요 (위도 -90~90, 경도 -180~180)." };
-  const dur = Number(input.dur);
-  if (!(dur >= 5 && dur <= 600)) return { ok: false, error: "체류시간은 5~600분으로 입력해주세요." };
+  const built = buildPlace(input);
+  if (!built.ok) return built;
 
-  const trip = await loadTrip(supabase, tripId);
-  if (!trip) return { ok: false, error: "여행을 찾을 수 없어요." };
-  if (trip.def.places.length >= 300) return { ok: false, error: "장소는 최대 300개까지 추가할 수 있어요." };
+  for (let attempt = 0; attempt < MAX_CAS_ATTEMPTS; attempt++) {
+    const { data: row, error: readError } = await supabase.from("trips").select("def, updated_at").eq("id", tripId).maybeSingle();
+    if (readError) return { ok: false, error: readError.message };
+    if (!row) return { ok: false, error: "여행을 찾을 수 없어요." };
 
-  const place: Place = {
-    id: uid("u"), name, cat: input.cat in { sight: 1, food: 1, activity: 1, show: 1, parking: 1, stay: 1, etc: 1 } ? input.cat : "etc",
-    dur, addr: input.addr.trim().slice(0, 200) || undefined, hours: input.hours.trim().slice(0, 100) || undefined,
-    desc: input.desc.trim().slice(0, 300) || undefined, note: input.note.trim().slice(0, 500) || undefined,
-    ...(lat != null && lon != null ? { lat, lon } : {}),
-  };
-  const def: TripDef = { ...trip.def, places: [...trip.def.places, place] };
-  const { error } = await supabase.from("trips").update({ def, updated_at: new Date().toISOString() }).eq("id", tripId);
-  if (error) return { ok: false, error: error.message };
+    const def = row.def as TripDef;
+    if (def.places.length >= MAX_PLACES) return { ok: false, error: `장소는 최대 ${MAX_PLACES}개까지 추가할 수 있어요.` };
+
+    const { data: updated, error } = await supabase
+      .from("trips")
+      .update({ def: { ...def, places: [...def.places, built.place] }, updated_at: nextVersion(row.updated_at, Date.now()) })
+      .eq("id", tripId)
+      .eq("updated_at", row.updated_at)
+      .select("id");
+    if (error) return { ok: false, error: error.message };
+    if (updated?.length) break;
+    if (attempt === MAX_CAS_ATTEMPTS - 1) return { ok: false, error: CONFLICT_MESSAGE };
+  }
 
   if (input.addNow) {
-    const r = await editDay(tripId, input.planId, input.day, { type: "add", placeId: place.id });
-    if (!r.ok) return r;
+    const r = await editDay(tripId, input.planId, input.day, { type: "add", placeId: built.place.id });
+    if (!r.ok) return { ok: false, error: `장소는 저장했지만 일정에 넣지 못했어요: ${r.error}` };
   }
   revalidatePath(`/trips/${tripId}`);
   return { ok: true };

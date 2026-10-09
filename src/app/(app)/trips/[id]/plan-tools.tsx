@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { addPlace, editDay, type DayOp } from "../actions";
+import { addPlace, editDay } from "../actions";
+import type { DayOp } from "@/lib/trip/day-ops";
 
 type Ctx = { tripId: string; planId: string; day: number };
 

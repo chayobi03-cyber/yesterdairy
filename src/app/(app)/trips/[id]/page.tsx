@@ -152,6 +152,7 @@ export default async function TripPage({ params, searchParams }: { params: Promi
               checks={p?.checks ?? []}
               walkUrl={p && (hasCoord(p) || p.addr) ? directionsUrl(p, "walk") : null}
               carUrl={p && (hasCoord(p) || p.addr) ? directionsUrl(p, "car") : null}
+              version={pg?.updated_at ?? ""}
               status={pg?.status ?? null}
               checked={pg?.checks ?? {}}
               memo={pg?.memo ?? ""}
