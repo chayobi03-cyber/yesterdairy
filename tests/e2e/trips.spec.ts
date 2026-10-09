@@ -65,6 +65,13 @@ test("family trip: create from template -> place-by-place progress -> shared wit
 
   await step("check-list, memo and cost are saved", /focus=d1-lunch/, async () => {
     const card = page.getByRole("region", { name: /2\. 전주비빔밥 점심/ });
+    // 저장은 서버 액션 POST로 나간다. 응답이 몇 번 왔는지 세어서 저장이 끝났는지 판단한다
+    // (networkidle은 링크 프리페치/자동 새로고침 때문에 끝나지 않는다).
+    let actionResponses = 0;
+    const countAction = (r: import("@playwright/test").Response) => {
+      if (r.request().method() === "POST" && r.request().headers()["next-action"]) actionResponses++;
+    };
+    page.on("response", countAction);
     await card.getByRole("checkbox").first().check();
     await card.getByLabel(/메모/).fill(`예약 완료 ${runId}`);
     await card.getByLabel(/지출/).fill("45000");
@@ -72,8 +79,9 @@ test("family trip: create from template -> place-by-place progress -> shared wit
     await page.getByRole("button", { name: "📍 도착" }).click();
     await expect(page.getByRole("button", { name: "📍 도착" })).toHaveAttribute("aria-pressed", "true");
     // 연달아 누른 저장 요청은 서버 액션 대기열에서 순서대로 처리된다. 끝나기 전에 새로고침하면
-    // 대기 중인 요청이 사라지므로(사용자도 마찬가지), 저장이 끝날 때까지 기다린 뒤 확인한다.
-    await page.waitForLoadState("networkidle");
+    // 대기 중인 요청이 사라지므로(사용자도 마찬가지), 4건(체크, 메모, 지출, 상태) 응답을 기다린다.
+    await expect.poll(() => actionResponses, { timeout: 20_000 }).toBeGreaterThanOrEqual(4);
+    page.off("response", countAction);
     await expect(page.getByText("저장 중…")).toHaveCount(0);
     // DB에 남았는지 새로고침해서 확인 (재시도)
     await expect(async () => {
