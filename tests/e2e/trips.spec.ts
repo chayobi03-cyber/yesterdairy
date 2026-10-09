@@ -50,6 +50,9 @@ function countServerActions(page: Page) {
 }
 
 test("family trip: map + ordered stops on one page, instant edits, shared with family only", async ({ page, browser }) => {
+  // 시나리오가 길다(가입 2명 + 지도/목록/편집/동시 편집/삭제, 모두 실제 Supabase 왕복).
+  // 전역 90초는 마지막 구간(두 번째 구성원)에서 항상 끊겨서, 이 테스트만 넉넉히 잡는다.
+  test.setTimeout(240_000);
   const step = makeStep(page);
   let inviteCode = "";
   let tripUrl = "";
