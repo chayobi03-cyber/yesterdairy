@@ -74,3 +74,7 @@ Google Calendar 연동, 가족 공유 일정(현재 일정은 개인 캘린더�
 [`docs/design-principles.md`](docs/design-principles.md) 참고 — 비용/랜덤/RLS/
 스토리지 RLS/비정규화 필드 동기화/E2E 타임아웃/하단 탭바 개수에 대한 원칙을
 정리해뒀습니다. `CLAUDE.md`에서 임포트하고 있어서 새 세션에서도 항상 로드돼요.
+
+## 배포
+
+- 운영 브랜치는 `main`입니다. `main`에 병합되면 Vercel이 프로덕션으로 배포합니다 (다른 브랜치는 미리보기 배포).
