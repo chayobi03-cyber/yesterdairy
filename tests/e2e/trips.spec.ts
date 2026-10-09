@@ -71,7 +71,11 @@ test("family trip: create from template -> place-by-place progress -> shared wit
     await card.getByLabel(/지출/).blur();
     await page.getByRole("button", { name: "📍 도착" }).click();
     await expect(page.getByRole("button", { name: "📍 도착" })).toHaveAttribute("aria-pressed", "true");
-    // 저장은 서버 액션 왕복이라 아직 진행 중일 수 있다 -> 새로고침해서 DB에 남았는지 재시도하며 확인
+    // 연달아 누른 저장 요청은 서버 액션 대기열에서 순서대로 처리된다. 끝나기 전에 새로고침하면
+    // 대기 중인 요청이 사라지므로(사용자도 마찬가지), 저장이 끝날 때까지 기다린 뒤 확인한다.
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByText("저장 중…")).toHaveCount(0);
+    // DB에 남았는지 새로고침해서 확인 (재시도)
     await expect(async () => {
       await page.reload();
       await expect(card.getByLabel(/메모/)).toHaveValue(`예약 완료 ${runId}`, { timeout: 2_000 });

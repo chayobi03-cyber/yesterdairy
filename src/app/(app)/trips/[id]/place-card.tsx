@@ -194,6 +194,7 @@ export function PlaceCard(d: PlaceCardData) {
         />
       </label>
 
+      {pending && <p role="status" className="text-xs text-neutral-400">저장 중…</p>}
       {error && <p role="alert" className="text-xs text-red-500">{error}</p>}
 
       {d.nextHref ? (
