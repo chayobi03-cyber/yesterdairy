@@ -109,6 +109,14 @@ export default async function HomePage() {
         🎨 색 컬렉션 보러가기
       </Link>
 
+      <Link href="/trips" className="flex items-center gap-3 rounded-2xl border border-line bg-card p-4">
+        <span className="text-2xl">🧳</span>
+        <span className="flex-1">
+          <span className="block text-sm font-medium">가족 여행</span>
+          <span className="block text-xs text-neutral-400">장소별로 함께 계획하고 기록해요</span>
+        </span>
+      </Link>
+
       <Link
         href="/write"
         className="flex items-center justify-center gap-2 rounded-3xl bg-accent-400 px-6 py-4 text-sm font-medium text-white shadow-sm shadow-accent-200/60 transition active:scale-[0.98]"

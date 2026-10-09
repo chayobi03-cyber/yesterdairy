@@ -23,6 +23,9 @@ jobs:
 
       - run: npm ci
 
+      # 순수 로직 단위 테스트(DB 불필요, 1초 내외)를 먼저 돌려 빠르게 실패시킨다
+      - run: npm run test:unit
+
       - run: npx playwright install --with-deps chromium
 
       - run: npm run test:e2e
