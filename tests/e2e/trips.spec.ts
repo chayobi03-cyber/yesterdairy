@@ -253,7 +253,11 @@ test("family trip: map + ordered stops on one page, instant edits, shared with f
   });
 
   await step("invite code is available from the family screen", /\/family$/, async () => {
-    await page.goto("/family");
+    // 저장이 끝나면 앱이 1초 뒤 화면을 한 번 새로 받아오는데(router.refresh), 그 순간이 페이지 이동과 겹치면
+    // 주소 기록 갱신이 이동을 취소(net::ERR_ABORTED)한다. 앱 문제가 아니라 겹침이라 이동을 재시도한다.
+    await expect(async () => {
+      await page.goto("/family");
+    }).toPass({ timeout: 20_000 });
     const codeText = await page.getByText(/초대 코드:/).innerText();
     const match = codeText.match(/초대 코드:\s*([A-Z0-9]{6})/);
     if (!match) throw new Error(`invite code not found in: ${codeText}`);
