@@ -86,13 +86,24 @@ export async function createTrip(input: {
 export async function deleteTrip(tripId: string): Promise<Result> {
   const c = await ctx();
   if (!c) return NOT_SIGNED_IN;
-  // 행이 지워지면 파일 경로를 알 수 없으니 먼저 읽어 둔다 (파일은 삭제가 성공한 뒤에만 지운다)
-  const { data: photos } = await c.supabase.from("trip_photos").select("path, thumb_path").eq("trip_id", tripId);
-  const { data: deleted, error } = await c.supabase.from("trips").delete().eq("id", tripId).select("id");
+  const { supabase, user } = c;
+
+  // 여행을 지우면 사진 행과 가족 소속 확인이 함께 사라져서, 그 뒤에는 스토리지 RLS가 파일 삭제를
+  // 막는다(오류 없이 0개만 지워짐). 그래서 만든 사람인지 먼저 확인하고, 파일을 먼저 지운 다음 여행을 지운다.
+  const trip = await loadTrip(supabase, tripId);
+  if (!trip) return { ok: false, error: "여행을 찾을 수 없어요." };
+  if (trip.created_by !== user.id) return { ok: false, error: "여행을 만든 사람만 지울 수 있어요." };
+
+  const { data: photos } = await supabase.from("trip_photos").select("path, thumb_path").eq("trip_id", tripId);
+  const files = (photos ?? []).flatMap((p) => [p.path as string, p.thumb_path as string]);
+  if (files.length) {
+    const { error: removeError } = await supabase.storage.from("trip-media").remove(files);
+    if (removeError) return { ok: false, error: "사진 파일을 지우지 못했어요. 잠시 뒤 다시 시도해주세요." };
+  }
+
+  const { data: deleted, error } = await supabase.from("trips").delete().eq("id", tripId).select("id");
   if (error) return { ok: false, error: error.message };
   if (!deleted?.length) return { ok: false, error: "여행을 만든 사람만 지울 수 있어요." };
-  const files = (photos ?? []).flatMap((p) => [p.path as string, p.thumb_path as string]);
-  if (files.length) await c.supabase.storage.from("trip-media").remove(files);
   revalidatePath("/trips");
   return { ok: true };
 }
