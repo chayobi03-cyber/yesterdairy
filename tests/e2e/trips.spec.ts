@@ -227,7 +227,9 @@ test("family trip: map + ordered stops on one page, instant edits, shared with f
     await form.getByLabel("위도").fill("35.8140");
     await form.getByLabel("경도").fill("127.1510");
     await form.getByRole("button", { name: "저장" }).click();
-    await expect(page.getByText(`E2E카페 ${runId}`).first()).toBeVisible();
+    // 편집 모드에서는 "장소 바꾸기" 목록의 <option>에도 같은 이름이 있어 getByText는 숨은 option을 잡는다.
+    // 일정 카드의 끌어서 바꾸기 버튼으로 카드가 생겼는지 확인한다.
+    await expect(page.getByRole("button", { name: `E2E카페 ${runId} 순서 끌어서 바꾸기` })).toBeVisible();
     await expect(pins(page)).toHaveCount(7); // 6 + 새 장소
 
     // 보기 모드로 돌아가면 제외된 항목은 숨겨진다
