@@ -67,8 +67,10 @@ describe("지도와 목록", () => {
     expect(screen.getByTestId("map")).toBeTruthy();
     const pins = mapStops();
     expect(pins[0]).toMatchObject({ id: "d1-parking", number: 1 });
-    expect(pins.map((p) => p.number)).toEqual(pins.map((_, i) => i + 1)); // 숙소(좌표 없음)는 마지막이라 번호가 비지 않는다
+    // 핀 번호는 목록 번호와 같다. 좌표 없는 숙소(6번)는 핀이 없어 번호가 건너뛴다
+    expect(pins.map((p) => p.number)).toEqual([1, 2, 3, 4, 5, 7, 8]);
     expect(pins.some((p) => p.id === "d1-stay")).toBe(false);
+    expect(screen.getByRole("button", { name: /6\. 숙소 체크인/ })).toBeTruthy();
   });
 
   it("처음에는 '지금 가야 할 곳'이 첫 장소이고 상세가 열려 있다", () => {
@@ -422,6 +424,32 @@ describe("기타", () => {
     renderView();
     fireEvent.change(screen.getByRole("combobox", { name: "여행 대안" }), { target: { value: "experience" } });
     expect(orderOfStops()).toContain("d1-hanok-exp");
-    expect(orderOfStops()).not.toContain("d1-snack");
+    expect(orderOfStops()).not.toContain("d1-hanok-walk");
+  });
+});
+
+describe("고정 시작 시각", () => {
+  it("편집 모드에서 시각을 지정하면 카드와 하루 요약에 대기 시간이 나타나고, 해제하면 사라진다", () => {
+    renderView();
+    // 기본 일정에서 저녁은 17:30 고정이라 이미 대기가 있다
+    expect(screen.getByTestId("day-summary").textContent).toContain("대기");
+    fireEvent.click(screen.getByRole("button", { name: "일정 편집" }));
+    const input = screen.getByLabelText("저녁 식사 고정 시작 시각") as HTMLInputElement;
+    expect(input.value).toBe("17:30");
+    fireEvent.change(input, { target: { value: "19:00" } });
+    expect((screen.getByLabelText("저녁 식사 고정 시작 시각") as HTMLInputElement).value).toBe("19:00");
+    expect(screen.getByTestId("stop-d1-dinner").textContent).toContain("19:00");
+    expect(h.editDay).toHaveBeenCalledWith("trip-1", "balanced", 1, { type: "setAt", itemId: "d1-dinner", at: "19:00" });
+
+    fireEvent.click(screen.getByRole("button", { name: "저녁 식사 고정 시각 해제" }));
+    expect(screen.queryByRole("button", { name: "저녁 식사 고정 시각 해제" })).toBeNull();
+  });
+
+  it("고정 시각보다 늦게 도착하는 항목에는 '늦음'이 표시된다", () => {
+    renderView();
+    fireEvent.click(screen.getByRole("button", { name: "일정 편집" }));
+    // 점심을 길게 늘려 저녁(17:30 고정)을 확실히 넘긴다
+    for (let i = 0; i < 40; i++) fireEvent.click(within(screen.getByTestId("stop-d1-lunch")).getByRole("button", { name: "체류시간 10분 증가" }));
+    expect(screen.getByTestId("stop-d1-dinner").textContent).toMatch(/예정 17:30보다 \d+분 늦음/);
   });
 });

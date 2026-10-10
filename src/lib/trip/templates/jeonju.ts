@@ -2,6 +2,8 @@ import type { TripDef } from "../types";
 
 // 전주 가족 1박 2일 기본 템플릿. 좌표(approx)는 근사치이고 운영시간·행사·주차는
 // 실시간 검증값이 아니므로 방문 전 공식 채널에서 확인해야 한다.
+// 시간·요금 정보의 근거와 한계는 docs/jeonju-template-research.md 참고.
+// 항목의 at(고정 시작 시각)은 체크인·저녁처럼 시각이 정해진 항목에 쓴다.
 export const jeonjuTemplate: TripDef = {
   "id": "jeonju-2d",
   "title": "전주 가족 1박 2일",
@@ -15,7 +17,7 @@ export const jeonjuTemplate: TripDef = {
     {
       "n": 1,
       "label": "1일차",
-      "start": "10:30"
+      "start": "11:30"
     },
     {
       "n": 2,
@@ -26,7 +28,6 @@ export const jeonjuTemplate: TripDef = {
   "mandatory": [
     "jeondong",
     "gyeonggijeon",
-    "nanjang",
     "hyanggyo"
   ],
   "defaultPlan": "balanced",
@@ -40,9 +41,10 @@ export const jeonjuTemplate: TripDef = {
       "approx": true,
       "dur": 20,
       "desc": "주차 후 도보로 이동하는 출발점.",
-      "hours": "운영시간·요금 확인 필요",
+      "hours": "한옥마을 공영주차장: 최초 30분 1,200원 + 15분마다 600원, 1일권 14,400원 (2025.9 보도 기준, 변동 가능)",
       "tips": [
-        "주말·행사일에는 만차가 잦을 수 있어 대체 주차장을 미리 정해 두세요."
+        "주말·행사일에는 만차가 잦을 수 있어 대체 주차장을 미리 정해 두세요.",
+        "제4공영주차장은 무료이고 셔틀버스로 연결돼요 (셔틀 운행시간은 비공식 자료라 출발 전 확인)."
       ],
       "checks": [
         "주차장 운영시간/요금 확인",
@@ -77,7 +79,7 @@ export const jeonjuTemplate: TripDef = {
       "lon": 127.1497,
       "dur": 35,
       "desc": "호남 최초의 서양식 성당. 한옥마을 입구의 대표 포토 스폿.",
-      "hours": "개방시간·미사시간 확인 필요",
+      "hours": "내부 관람 09:00~17:00, 무료 (2026 여행 매체 보도 기준 · 미사 시각은 확인하지 못함)",
       "tips": [
         "미사 시간에는 내부 관람이 제한될 수 있어요.",
         "조용히 관람하도록 아이와 미리 이야기해 두세요."
@@ -95,9 +97,10 @@ export const jeonjuTemplate: TripDef = {
       "lon": 127.15,
       "dur": 60,
       "desc": "태조 어진을 모신 곳. 조선왕조실록 이야기를 아이와 함께.",
-      "hours": "운영시간·입장료 확인 필요",
+      "hours": "9월 기준 09:00~19:00 (입장 18:00 마감, 계절별 상이) · 성인 3,000원",
       "tips": [
-        "한복 착용 시 입장료 혜택이 있는지 현장 안내를 확인하세요."
+        "2026.3.26~12.17 정전 단청공사 예정으로 정전 구역은 출입이 제한돼요 (경내·어진박물관은 관람 가능, 종료일은 바뀔 수 있음).",
+        "어진박물관 휴관일은 자료마다 달라요. 한복 입장료 혜택도 확인하지 못했으니 현장 안내를 확인하세요."
       ],
       "checks": [
         "입장료/운영시간 확인",
@@ -169,16 +172,14 @@ export const jeonjuTemplate: TripDef = {
     },
     {
       "id": "nanjang",
-      "name": "전주난장",
+      "name": "전주예술난장 (거리공연 축제)",
       "cat": "show",
-      "lat": 35.8137,
-      "lon": 127.1511,
-      "approx": true,
       "dur": 60,
-      "desc": "공연·행사형 콘텐츠. 개최 여부와 시간대가 변동될 수 있습니다.",
-      "hours": "행사 일정 확인 필수",
+      "opt": true,
+      "desc": "연 1회 열리는 거리예술 축제예요. 2025년에는 팔복동 일대에서 열렸고, 한옥마을 상설 공연이 아니라서 위치(좌표)를 넣지 않았어요.",
+      "hours": "개최 여부·일정·장소 확인 필수 (2026년 개최 계획은 확인하지 못함)",
       "tips": [
-        "개최 일정과 장소는 공식 안내로 출발 전 확인하세요."
+        "열리는 해와 장소는 전주문화재단 공지로 확인하고, 열린다면 좌표를 직접 입력해 쓰세요."
       ],
       "checks": [
         "개최 일정/장소 공식 확인",
@@ -190,7 +191,7 @@ export const jeonjuTemplate: TripDef = {
       "name": "숙소 체크인",
       "cat": "stay",
       "dur": 40,
-      "desc": "체크인 후 휴식.",
+      "desc": "체크인 후 휴식. 체크인은 보통 오후 3시 이후라 그 전에는 짐만 맡길 수 있어요. 숙소 위치를 알면 내 장소로 좌표를 넣어 쓰세요.",
       "checks": [
         "체크인 가능 시간",
         "주차 가능 여부"
@@ -205,7 +206,10 @@ export const jeonjuTemplate: TripDef = {
       "approx": true,
       "dur": 50,
       "desc": "고즈넉한 향교와 오래된 은행나무. 한적한 아침 산책에 좋아요.",
-      "hours": "개방시간 확인 필요",
+      "hours": "입장 무료로 소개됨 (개방시간·주차는 확인하지 못함)",
+      "tips": [
+        "대성전 앞 400년 넘은 은행나무는 11월 초중순에 노랗게 물들어요 (10월 초에는 이를 수 있어요)."
+      ],
       "checks": [
         "개방시간 확인",
         "주변 주차 확인"
@@ -230,7 +234,8 @@ export const jeonjuTemplate: TripDef = {
       "approx": true,
       "dur": 45,
       "opt": true,
-      "desc": "아이와 사진 찍기 좋은 벽화 골목. 언덕길이 있습니다."
+      "desc": "아이와 사진 찍기 좋은 벽화 골목(만화 캐릭터 위주, 30분~1시간). 입구와 중간에 오르막이 있고 마을 안에는 주차가 어려워요. 유모차는 불편할 수 있어요.",
+      "hours": "상시 개방으로 소개됨 (마을 안 주차 불가 — 한옥마을 쪽에 주차 후 도보)"
     },
     {
       "id": "cafe",
@@ -254,6 +259,7 @@ export const jeonjuTemplate: TripDef = {
       "approx": true,
       "dur": 70,
       "desc": "시장 먹거리 점심. 이동 후 주차 계획이 필요합니다.",
+      "hours": "점포별 영업시간·휴무일이 달라요 (대략 09:30~23:00로 소개됨). 야시장은 금·토에만 열려요.",
       "food": [
         "국밥",
         "시장 분식",
@@ -299,20 +305,17 @@ export const jeonjuTemplate: TripDef = {
             "p": "snack"
           },
           {
+            "id": "d1-stay",
+            "p": "stay"
+          },
+          {
             "id": "d1-hanok-walk",
             "p": "hanok-walk"
           },
           {
             "id": "d1-dinner",
-            "p": "dinner"
-          },
-          {
-            "id": "d1-nanjang",
-            "p": "nanjang"
-          },
-          {
-            "id": "d1-stay",
-            "p": "stay"
+            "p": "dinner",
+            "at": "17:30"
           }
         ],
         "2": [
@@ -331,7 +334,8 @@ export const jeonjuTemplate: TripDef = {
           },
           {
             "id": "d2-market",
-            "p": "market"
+            "p": "market",
+            "at": "11:30"
           },
           {
             "id": "d2-fin",
@@ -362,20 +366,21 @@ export const jeonjuTemplate: TripDef = {
             "p": "gyeonggijeon"
           },
           {
+            "id": "d1-snack",
+            "p": "snack"
+          },
+          {
             "id": "d1-hanok-exp",
             "p": "hanok-exp"
           },
           {
-            "id": "d1-dinner",
-            "p": "dinner"
-          },
-          {
-            "id": "d1-nanjang",
-            "p": "nanjang"
-          },
-          {
             "id": "d1-stay",
             "p": "stay"
+          },
+          {
+            "id": "d1-dinner",
+            "p": "dinner",
+            "at": "17:30"
           }
         ],
         "2": [
@@ -428,27 +433,26 @@ export const jeonjuTemplate: TripDef = {
             "p": "cafe"
           },
           {
-            "id": "d1-dinner",
-            "p": "dinner"
-          },
-          {
-            "id": "d1-nanjang",
-            "p": "nanjang",
-            "dur": 40
-          },
-          {
             "id": "d1-stay",
-            "p": "stay"
+            "p": "stay",
+            "dur": 90
+          },
+          {
+            "id": "d1-dinner",
+            "p": "dinner",
+            "at": "17:30"
           }
         ],
         "2": [
           {
             "id": "d2-hyanggyo",
-            "p": "hyanggyo"
+            "p": "hyanggyo",
+            "dur": 90
           },
           {
             "id": "d2-market",
-            "p": "market"
+            "p": "market",
+            "at": "11:30"
           },
           {
             "id": "d2-fin",

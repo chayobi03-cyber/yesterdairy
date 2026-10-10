@@ -65,9 +65,10 @@ export function StopCard(p: StopCardProps) {
               {place?.approx && <span className="rounded-full border border-line px-1.5 text-[10px] font-normal text-neutral-400">좌표 근사</span>}
             </span>
             <span className="text-xs text-neutral-400">
-              {row.included && row.start != null && row.end != null ? `${fmt(row.start)}–${fmt(row.end)} · ` : "제외됨 · "}
+              {row.included && row.start != null && row.end != null ? `${row.item.at ? "⏰ " : ""}${fmt(row.start)}–${fmt(row.end)} · ` : "제외됨 · "}
               {place?.cat ? `${CATS[place.cat] ?? ""} · ` : ""}
               {row.dur}분
+              {row.included && row.late > 0 && <span className="ml-1 text-red-500">· 예정 {row.item.at}보다 {row.late}분 늦음</span>}
             </span>
           </button>
 
@@ -102,6 +103,17 @@ export function StopCard(p: StopCardProps) {
             <Tool label="↓" aria="아래로" disabled={p.index === p.count - 1} onClick={() => p.onEdit({ type: "move", index: p.index, dir: 1 })} />
             <Tool label="−10분" aria="체류시간 10분 감소" onClick={() => p.onEdit({ type: "dur", itemId: row.id, delta: -10 })} />
             <Tool label="+10분" aria="체류시간 10분 증가" onClick={() => p.onEdit({ type: "dur", itemId: row.id, delta: 10 })} />
+            <label className="flex min-h-9 items-center gap-1 rounded-lg border border-line px-2 text-xs">
+              시작 시각
+              <input
+                type="time"
+                aria-label={`${title} 고정 시작 시각`}
+                value={row.item.at ?? ""}
+                onChange={(e) => p.onEdit({ type: "setAt", itemId: row.id, at: e.target.value || null })}
+                className="bg-transparent text-xs"
+              />
+            </label>
+            {row.item.at && <Tool label="시각 해제" aria={`${title} 고정 시각 해제`} onClick={() => p.onEdit({ type: "setAt", itemId: row.id, at: null })} />}
             {!mandatory && <Tool label="삭제" danger onClick={() => p.onEdit({ type: "remove", itemId: row.id }, "이 일정을 삭제할까요?")} />}
           </div>
         )}

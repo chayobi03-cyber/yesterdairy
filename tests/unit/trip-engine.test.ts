@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CAT_COLORS, LEGEND, catColor, currentIndex, directionsUrl, dragTargetIndex, fmt, hasCoord, mandatoryStatus, move,
-  routeUrl, timeline, toMin, travel, validCoord, validateTrip,
+  routeUrl, timeline, toMin, travel, validAt, validCoord, validateTrip,
 } from "../../src/lib/trip/engine";
 import { jeonjuTemplate } from "../../src/lib/trip/templates/jeonju";
 import type { Place, PlanItem } from "../../src/lib/trip/types";
@@ -224,5 +224,44 @@ describe("카테고리 색 / 범례", () => {
   it("범례가 모든 카테고리를 빠짐없이, 중복 없이 덮는다", () => {
     const cats = LEGEND.flatMap((l) => l.cats).sort();
     expect(cats).toEqual(Object.keys(CAT_COLORS).sort());
+  });
+});
+
+describe("고정 시작 시각(at)", () => {
+  const ps = places([
+    { id: "a", lat: 35.8, lon: 127.1, dur: 30 },
+    { id: "b", lat: 35.8, lon: 127.1, dur: 30 },
+  ]);
+  it("일찍 도착하면 그 시각까지 기다린다", () => {
+    const rows = timeline([{ id: "1", p: "a" }, { id: "2", p: "b", at: "12:00" }], ps, "10:00");
+    expect(rows[1].start).toBe(12 * 60);
+    expect(rows[1].wait).toBe(12 * 60 - (10 * 60 + 30));
+    expect(rows[1].late).toBe(0);
+  });
+  it("늦게 도착하면 기다리지 않고 늦은 분을 기록한다", () => {
+    const rows = timeline([{ id: "1", p: "a", dur: 120 }, { id: "2", p: "b", at: "11:00" }], ps, "10:00");
+    expect(rows[1].start).toBe(12 * 60);
+    expect(rows[1].wait).toBe(0);
+    expect(rows[1].late).toBe(60);
+  });
+  it("제외된 항목은 시간에 영향을 주지 않고, 잘못된 형식은 무시한다", () => {
+    const rows = timeline([{ id: "1", p: "a", at: "9:5" }, { id: "2", p: "b", at: "23:00", included: false }], ps, "10:00");
+    expect(rows[0].start).toBe(10 * 60);
+    expect(rows[0].wait).toBe(0);
+    expect(rows[1].start).toBeNull();
+  });
+  it("validAt / validateTrip이 형식을 검사한다", () => {
+    expect(validAt("00:00")).toBe(true);
+    expect(validAt("23:59")).toBe(true);
+    expect(validAt("24:00")).toBe(false);
+    expect(validAt("9:30")).toBe(false);
+    const t = structuredClone(jeonjuTemplate);
+    t.plans.balanced.days["1"][0].at = "9시";
+    expect(validateTrip(t).some((e) => e.includes("HH:MM"))).toBe(true);
+  });
+  it("전주 템플릿: 필수 방문지는 모든 대안에 있고 좌표 없는 장소가 지도 핀으로 잡히지 않는다", () => {
+    expect(jeonjuTemplate.mandatory).not.toContain("nanjang");
+    const nanjang = jeonjuTemplate.places.find((p) => p.id === "nanjang")!;
+    expect(hasCoord(nanjang)).toBe(false);
   });
 });

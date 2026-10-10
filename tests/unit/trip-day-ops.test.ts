@@ -211,3 +211,19 @@ describe("nextVersion (낙관적 잠금 버전)", () => {
     expect(MAX_CAS_ATTEMPTS).toBeGreaterThan(1);
   });
 });
+
+describe("applyDayOp setAt", () => {
+  const items = [{ id: "i1", rest: "점심" }, { id: "i2", rest: "저녁", at: "18:00" }];
+  const ctx = { places: [], mandatory: [] };
+  it("시각을 지정하고, 해제하고, 입력 배열은 바꾸지 않는다", () => {
+    const set = applyDayOp(items, { type: "setAt", itemId: "i1", at: "12:30" }, ctx);
+    expect(set.ok && set.items[0].at).toBe("12:30");
+    expect(items[0]).not.toHaveProperty("at");
+    const cleared = applyDayOp(items, { type: "setAt", itemId: "i2", at: null }, ctx);
+    expect(cleared.ok && cleared.items[1]).not.toHaveProperty("at");
+  });
+  it("잘못된 형식이나 없는 항목은 거부", () => {
+    expect(applyDayOp(items, { type: "setAt", itemId: "i1", at: "25:00" }, ctx).ok).toBe(false);
+    expect(applyDayOp(items, { type: "setAt", itemId: "nope", at: "10:00" }, ctx).ok).toBe(false);
+  });
+});
