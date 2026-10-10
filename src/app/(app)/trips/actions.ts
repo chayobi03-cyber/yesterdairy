@@ -8,6 +8,7 @@ import { CONFLICT_MESSAGE, MAX_CAS_ATTEMPTS, nextVersion } from "@/lib/trip/cas"
 import { applyDayOp, buildPlace, MAX_PLACES, type DayOp, type NewPlaceInput } from "@/lib/trip/day-ops";
 import { validateTrip } from "@/lib/trip/engine";
 import { applyProgressPatch, EMPTY_PROGRESS, type ProgressPatch, type ProgressState } from "@/lib/trip/progress";
+import { PHOTO_ID_RE, MAX_PHOTO_BYTES, canAddPhotos, photoPaths } from "@/lib/trip/photos";
 import { jeonjuTemplate } from "@/lib/trip/templates/jeonju";
 import type { PlanItem, TripDef } from "@/lib/trip/types";
 
@@ -85,9 +86,65 @@ export async function createTrip(input: {
 export async function deleteTrip(tripId: string): Promise<Result> {
   const c = await ctx();
   if (!c) return NOT_SIGNED_IN;
-  const { error } = await c.supabase.from("trips").delete().eq("id", tripId);
+  const { supabase, user } = c;
+
+  // 여행을 지우면 사진 행과 가족 소속 확인이 함께 사라져서, 그 뒤에는 스토리지 RLS가 파일 삭제를
+  // 막는다(오류 없이 0개만 지워짐). 그래서 만든 사람인지 먼저 확인하고, 파일을 먼저 지운 다음 여행을 지운다.
+  const trip = await loadTrip(supabase, tripId);
+  if (!trip) return { ok: false, error: "여행을 찾을 수 없어요." };
+  if (trip.created_by !== user.id) return { ok: false, error: "여행을 만든 사람만 지울 수 있어요." };
+
+  const { data: photos } = await supabase.from("trip_photos").select("path, thumb_path").eq("trip_id", tripId);
+  const files = (photos ?? []).flatMap((p) => [p.path as string, p.thumb_path as string]);
+  if (files.length) {
+    const { error: removeError } = await supabase.storage.from("trip-media").remove(files);
+    if (removeError) return { ok: false, error: "사진 파일을 지우지 못했어요. 잠시 뒤 다시 시도해주세요." };
+  }
+
+  const { data: deleted, error } = await supabase.from("trips").delete().eq("id", tripId).select("id");
   if (error) return { ok: false, error: error.message };
+  if (!deleted?.length) return { ok: false, error: "여행을 만든 사람만 지울 수 있어요." };
   revalidatePath("/trips");
+  return { ok: true };
+}
+
+/* ---------- 사진 ---------- */
+
+// 파일은 브라우저가 Storage로 직접 올리고(lib/trip/photo-upload.ts), 여기서는 메타데이터 행만 만든다.
+export async function registerPhoto(tripId: string, input: { id: string; itemId: string | null; size: number }): Promise<Result> {
+  const c = await ctx();
+  if (!c) return NOT_SIGNED_IN;
+  if (!PHOTO_ID_RE.test(input.id) || !PHOTO_ID_RE.test(tripId)) return { ok: false, error: "잘못된 사진이에요." };
+  if (input.itemId != null && !ID_RE.test(input.itemId)) return { ok: false, error: "잘못된 항목이에요." };
+  if (!Number.isInteger(input.size) || input.size < 1 || input.size > MAX_PHOTO_BYTES) return { ok: false, error: "사진 크기가 올바르지 않아요." };
+  const { supabase, user } = c;
+
+  const [{ count: tripCount }, { count: itemCount }] = await Promise.all([
+    supabase.from("trip_photos").select("id", { count: "exact", head: true }).eq("trip_id", tripId),
+    input.itemId == null
+      ? supabase.from("trip_photos").select("id", { count: "exact", head: true }).eq("trip_id", tripId).is("item_id", null)
+      : supabase.from("trip_photos").select("id", { count: "exact", head: true }).eq("trip_id", tripId).eq("item_id", input.itemId),
+  ]);
+  const room = canAddPhotos(itemCount ?? 0, tripCount ?? 0, 1);
+  if (!room.ok) return room;
+
+  const { path, thumbPath } = photoPaths(tripId, input.id);
+  const { error } = await supabase.from("trip_photos").insert({
+    id: input.id, trip_id: tripId, item_id: input.itemId, path, thumb_path: thumbPath, size_bytes: input.size, created_by: user.id,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function deletePhoto(tripId: string, photoId: string): Promise<Result> {
+  const c = await ctx();
+  if (!c) return NOT_SIGNED_IN;
+  if (!PHOTO_ID_RE.test(photoId) || !PHOTO_ID_RE.test(tripId)) return { ok: false, error: "잘못된 사진이에요." };
+  // 행 삭제 정책이 "올린 사람 또는 여행을 만든 사람"만 허용한다
+  const { data, error } = await c.supabase.from("trip_photos").delete().eq("id", photoId).eq("trip_id", tripId).select("path, thumb_path");
+  if (error) return { ok: false, error: error.message };
+  if (!data?.length) return { ok: false, error: "올린 사람이나 여행을 만든 사람만 지울 수 있어요." };
+  await c.supabase.storage.from("trip-media").remove([data[0].path as string, data[0].thumb_path as string]);
   return { ok: true };
 }
 
@@ -109,14 +166,14 @@ export async function updateProgress(tripId: string, itemId: string, patch: Prog
   for (let attempt = 0; attempt < MAX_CAS_ATTEMPTS; attempt++) {
     const { data: existing, error: readError } = await supabase
       .from("trip_progress")
-      .select("status, checks, memo, cost, updated_at")
+      .select("status, checks, memo, cost, review, rating, updated_at")
       .eq("trip_id", tripId)
       .eq("item_id", itemId)
       .maybeSingle();
     if (readError) return { ok: false, error: readError.message };
 
     const cur: ProgressState = existing
-      ? { status: existing.status, checks: existing.checks ?? {}, memo: existing.memo ?? "", cost: existing.cost }
+      ? { status: existing.status, checks: existing.checks ?? {}, memo: existing.memo ?? "", cost: existing.cost, review: existing.review ?? "", rating: existing.rating ?? null }
       : EMPTY_PROGRESS;
     const next = applyProgressPatch(cur, patch);
     if (!next.ok) return next;

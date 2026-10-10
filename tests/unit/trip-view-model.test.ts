@@ -13,6 +13,7 @@ const base = (over: Partial<TripSnapshot> = {}): TripSnapshot => ({
   def: structuredClone(jeonjuTemplate),
   overrides: {},
   progress: {},
+  photos: [],
   ...over,
 });
 const PLAN = "balanced";
@@ -64,9 +65,9 @@ describe("applyProgress", () => {
   it("행이 없으면 만들고, 있으면 병합하며 updated_at은 유지", () => {
     const a = applyProgress(base(), "d1-lunch", { status: "arrived" });
     expect(a.ok && a.snapshot.progress["d1-lunch"]).toMatchObject({ status: "arrived", memo: "", cost: null });
-    const withRow = base({ progress: { "d1-lunch": { item_id: "d1-lunch", status: "arrived", checks: {}, memo: "m", cost: 100, updated_at: "2026-10-09T00:00:00.000Z" } } });
+    const withRow = base({ progress: { "d1-lunch": { item_id: "d1-lunch", status: "arrived", checks: {}, memo: "m", cost: 100, review: "", rating: null, updated_at: "2026-10-09T00:00:00.000Z" } } });
     const b = applyProgress(withRow, "d1-lunch", { cost: 5000 });
-    expect(b.ok && b.snapshot.progress["d1-lunch"]).toMatchObject({ status: "arrived", memo: "m", cost: 5000, updated_at: "2026-10-09T00:00:00.000Z" });
+    expect(b.ok && b.snapshot.progress["d1-lunch"]).toMatchObject({ status: "arrived", memo: "m", cost: 5000, review: "", rating: null, updated_at: "2026-10-09T00:00:00.000Z" });
   });
   it("잘못된 값은 거부하고 원본은 그대로", () => {
     const s = base();
@@ -96,7 +97,7 @@ describe("buildRows / 번호 / 진행", () => {
     expect(nums).toEqual(nums.map((_, i) => i + 1));
   });
   it("진행 상태가 행에 붙는다", () => {
-    const s = base({ progress: { "d1-parking": { item_id: "d1-parking", status: "done", checks: {}, memo: "", cost: null, updated_at: "" } } });
+    const s = base({ progress: { "d1-parking": { item_id: "d1-parking", status: "done", checks: {}, memo: "", cost: null, review: "", rating: null, updated_at: "" } } });
     expect(buildRows(s, PLAN, 1)[0].status).toBe("done");
   });
   it("날짜별 시작 시각을 쓴다", () => {
@@ -106,7 +107,7 @@ describe("buildRows / 번호 / 진행", () => {
 });
 
 describe("currentStopId / nextStopId", () => {
-  const done = (id: string) => ({ item_id: id, status: "done" as const, checks: {}, memo: "", cost: null, updated_at: "" });
+  const done = (id: string) => ({ item_id: id, status: "done" as const, checks: {}, memo: "", cost: null, review: "", rating: null, updated_at: "" });
   it("첫 미완료 포함 항목이 지금 장소", () => {
     expect(currentStopId(base(), PLAN, 1)).toBe("d1-parking");
     const s = base({ progress: { "d1-parking": done("d1-parking") } });
@@ -128,7 +129,7 @@ describe("currentStopId / nextStopId", () => {
 
 describe("dayStats / totalCost", () => {
   it("완료/건너뜀 비율", () => {
-    const mk = (id: string, status: "done" | "skipped") => ({ item_id: id, status, checks: {}, memo: "", cost: 1000, updated_at: "" });
+    const mk = (id: string, status: "done" | "skipped") => ({ item_id: id, status, checks: {}, memo: "", cost: 1000, review: "", rating: null, updated_at: "" });
     const s = base({ progress: { "d2-hyanggyo": mk("d2-hyanggyo", "done"), "d2-omokdae": mk("d2-omokdae", "skipped") } });
     const st = dayStats(buildRows(s, PLAN, 2));
     expect(st).toEqual({ total: 4, done: 1, skipped: 1, percent: 50 });

@@ -3,7 +3,7 @@
 import { applyDayOp, type DayOp, type NewPlaceInput, buildPlace } from "./day-ops";
 import { currentIndex, hasCoord, mandatoryStatus, timeline, type Row } from "./engine";
 import { applyProgressPatch, EMPTY_PROGRESS, type ProgressPatch } from "./progress";
-import type { Place, PlanItem, ProgressRow, TripDef } from "./types";
+import type { Place, PlanItem, ProgressRow, TripDef, TripPhoto } from "./types";
 
 export type TripSnapshot = {
   tripId: string;
@@ -14,6 +14,8 @@ export type TripSnapshot = {
   overrides: Record<string, PlanItem[]>;
   // 항목 id -> 진행 기록
   progress: Record<string, ProgressRow>;
+  // 업로드 순서의 사진 목록 (서명 URL 포함)
+  photos: TripPhoto[];
 };
 
 export const dayKey = (plan: string, day: number) => `${plan}:${day}`;
@@ -51,7 +53,7 @@ export function applyProgress(
   patch: ProgressPatch,
 ): { ok: true; snapshot: TripSnapshot } | { ok: false; error: string } {
   const cur = s.progress[itemId];
-  const r = applyProgressPatch(cur ? { status: cur.status, checks: cur.checks, memo: cur.memo, cost: cur.cost } : EMPTY_PROGRESS, patch);
+  const r = applyProgressPatch(cur ? { status: cur.status, checks: cur.checks, memo: cur.memo, cost: cur.cost, review: cur.review ?? "", rating: cur.rating ?? null } : EMPTY_PROGRESS, patch);
   if (!r.ok) return r;
   const row: ProgressRow = { item_id: itemId, updated_at: cur?.updated_at ?? "", ...r.state };
   return { ok: true, snapshot: { ...s, progress: { ...s.progress, [itemId]: row } } };
@@ -150,7 +152,8 @@ export function dayLabel(s: TripSnapshot, n: number): string {
 
 // 서버가 보낸 새 스냅샷을 받아들일지 판단하는 지문 (내용이 같으면 화면을 건드리지 않는다)
 export function snapshotSignature(s: TripSnapshot): string {
-  return JSON.stringify([s.title, s.startDate, s.def, s.overrides, s.progress]);
+  // 사진은 서명 URL이 매번 달라지므로 id만 비교한다 (그렇지 않으면 폴링 때마다 화면이 갈아끼워진다)
+  return JSON.stringify([s.title, s.startDate, s.def, s.overrides, s.progress, s.photos.map((p) => p.id)]);
 }
 
 export type MapStop = {

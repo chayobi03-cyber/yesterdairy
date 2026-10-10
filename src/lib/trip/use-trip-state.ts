@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { editDay, updateProgress, addPlace, type Result } from "@/app/(app)/trips/actions";
+import { editDay, updateProgress, addPlace, deletePhoto, type Result } from "@/app/(app)/trips/actions";
+import { uploadTripPhoto } from "./photo-upload";
+import { MAX_FILES_PER_PICK, canAddPhotos } from "./photos";
 import { uid } from "./engine";
 import type { NewPlaceInput } from "./day-ops";
 import type { ProgressPatch } from "./progress";
@@ -128,7 +130,51 @@ export function useTripState(initial: TripSnapshot) {
     [mutate],
   );
 
+  // 사진 올리기: 파일은 브라우저가 줄여서 Storage로 직접 올리고, 끝나면 서버 상태를 다시 받아 보여준다.
+  // 올리는 동안은 "저장 중" 상태라 주기적 동기화가 끼어들지 않는다.
+  const [uploading, setUploading] = useState(0);
+  const addPhotos = useCallback(
+    async (itemId: string | null, files: File[]) => {
+      const picked = files.slice(0, MAX_FILES_PER_PICK);
+      if (!picked.length) return;
+      const cur = latest.current;
+      const forItem = cur.photos.filter((p) => p.itemId === itemId).length;
+      const room = canAddPhotos(forItem, cur.photos.length, picked.length);
+      if (!room.ok) {
+        setError(room.error);
+        return;
+      }
+      setUploading((n) => n + picked.length);
+      setPending((p) => p + 1);
+      try {
+        // 한 장씩 차례로: 휴대폰에서 여러 장을 한꺼번에 줄이면 메모리가 부족할 수 있다
+        for (const file of picked) {
+          const res = await uploadTripPhoto(cur.tripId, itemId, file);
+          setUploading((n) => n - 1);
+          if (!res.ok) setError(res.error);
+          else router.refresh();
+        }
+      } finally {
+        setPending((p) => p - 1);
+        setUploading(0);
+        router.refresh();
+      }
+    },
+    [router],
+  );
+
+  const removePhoto = useCallback(
+    (photoId: string) => {
+      const tripId = latest.current.tripId;
+      return mutate(
+        (s) => ({ ok: true, snapshot: { ...s, photos: s.photos.filter((p) => p.id !== photoId) } }),
+        () => deletePhoto(tripId, photoId),
+      );
+    },
+    [mutate],
+  );
+
   const clearError = useCallback(() => setError(null), []);
 
-  return { snap, pending, error, clearError, edit, patchProgress, createPlace };
+  return { snap, pending, uploading, error, clearError, edit, patchProgress, createPlace, addPhotos, removePhoto };
 }
