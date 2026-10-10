@@ -210,6 +210,13 @@ test("family trip: map + ordered stops on one page, instant edits, shared with f
     await expect(stop(page, "d1-dinner")).toContainText("18:00");
     await expect(page.getByTestId("day-summary")).toContainText("대기");
 
+    // 하루 출발 시각과 체류시간 직접 입력: 맨 앞(점심)이 출발 시각부터 시작하고 입력한 분만큼 길어진다
+    await page.getByLabel("1일차 출발 시각").fill("10:00");
+    await expect(stop(page, "d1-lunch")).toContainText("10:00–");
+    await page.getByLabel("전주비빔밥 점심 체류시간(분)").fill("75");
+    await page.getByLabel("전주비빔밥 점심 체류시간(분)").blur();
+    await expect(stop(page, "d1-lunch")).toContainText("10:00–11:15");
+
     await page.getByLabel("일정 이름").fill("카페 휴식");
     await page.getByRole("button", { name: "장소 없는 일정 추가" }).click();
     await expect(page.getByText("카페 휴식", { exact: true })).toBeVisible();
@@ -220,12 +227,17 @@ test("family trip: map + ordered stops on one page, instant edits, shared with f
     await form.getByLabel("위도").fill("35.8140");
     await form.getByLabel("경도").fill("127.1510");
     await form.getByRole("button", { name: "저장" }).click();
-    await expect(page.getByText(`E2E카페 ${runId}`).first()).toBeVisible();
+    // 편집 모드에서는 "장소 바꾸기" 목록의 <option>에도 같은 이름이 있어 getByText는 숨은 option을 잡는다.
+    // 일정 카드의 끌어서 바꾸기 버튼으로 카드가 생겼는지 확인한다.
+    await expect(page.getByRole("button", { name: `E2E카페 ${runId} 순서 끌어서 바꾸기` })).toBeVisible();
     await expect(pins(page)).toHaveCount(7); // 6 + 새 장소
 
     // 보기 모드로 돌아가면 제외된 항목은 숨겨진다
     await page.getByRole("button", { name: "편집 끝내기" }).click();
     await expect(stop(page, "d1-snack")).toHaveCount(0);
+    // 편집은 화면에 먼저 반영되고 서버 저장은 순서대로 뒤에서 이어진다. 저장이 끝나기 전에 다른 페이지로
+    // 이동하면 대기 중인 저장이 사라지므로(출발 시각·체류시간·새 장소 등), "저장 중…"이 없어질 때까지 기다린다.
+    await expect(page.getByText("저장 중…")).toHaveCount(0, { timeout: 45_000 });
   });
 
   await step("phone width: no horizontal overflow", TRIP_URL, async () => {
@@ -236,7 +248,11 @@ test("family trip: map + ordered stops on one page, instant edits, shared with f
   });
 
   await step("invite code is available from the family screen", /\/family$/, async () => {
-    await page.goto("/family");
+    // 저장이 끝나면 앱이 1초 뒤 화면을 한 번 새로 받아오는데(router.refresh), 그 순간이 페이지 이동과 겹치면
+    // 주소 기록 갱신이 이동을 취소(net::ERR_ABORTED)한다. 앱 문제가 아니라 겹침이라 이동을 재시도한다.
+    await expect(async () => {
+      await page.goto("/family");
+    }).toPass({ timeout: 20_000 });
     const codeText = await page.getByText(/초대 코드:/).innerText();
     const match = codeText.match(/초대 코드:\s*([A-Z0-9]{6})/);
     if (!match) throw new Error(`invite code not found in: ${codeText}`);
@@ -263,6 +279,8 @@ test("family trip: map + ordered stops on one page, instant edits, shared with f
       await expect(detail2).toBeVisible();
       await expect(detail2.getByLabel(/메모/)).toHaveValue(`예약 완료 ${runId}`);
       await expect(detail2.getByRole("button", { name: "📍 도착" })).toHaveAttribute("aria-pressed", "true");
+      // 첫 번째 구성원이 바꾼 출발 시각·체류시간이 두 번째 구성원 화면에도 반영돼 있다
+      await expect(stop(page2, "d1-lunch")).toContainText("10:00–11:15");
       // 소감·사진도 가족에게 보인다 (테이블 RLS + 스토리지 RLS)
       await expect(detail2.getByLabel(/소감 \(가족 모두에게 보여요\)/)).toHaveValue(`비빔밥이 맛있었어요 ${runId}`);
       await expect(detail2.getByRole("img", { name: "전주비빔밥 점심 사진 1" })).toBeVisible();

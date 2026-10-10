@@ -25,6 +25,7 @@ export type StopCardProps = {
   onQuickDone: (id: string) => void;
   onPatch: (id: string, patch: ProgressPatch) => void;
   onEdit: (op: DayOp, confirmMessage?: string) => void;
+  placeOptions: { id: string; name: string }[];
   photos: TripPhoto[];
   canDeletePhoto: (p: TripPhoto) => boolean;
   onAddPhotos: (itemId: string, files: File[]) => void;
@@ -125,9 +126,70 @@ export function StopCard(p: StopCardProps) {
           </div>
         )}
 
+        {editMode && <EditFields {...p} title={title} />}
+
         {selected && row.included && <StopDetail {...p} />}
       </div>
     </li>
+  );
+}
+
+// 편집 모드에서 한 블록(일정 항목)을 바로 고치는 입력칸: 체류시간(분), 이름(장소 없는 일정), 장소 바꾸기
+function EditFields({ row, title, mandatory, placeOptions, onEdit }: StopCardProps & { title: string }) {
+  const dur = useSyncedField(String(row.dur));
+  const name = useSyncedField(row.item.rest ?? "");
+  const isRest = row.item.rest != null;
+  const input = "min-h-9 rounded-lg border border-line bg-card px-2 text-xs text-ink";
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-t border-line px-3 py-2 text-xs text-neutral-500">
+      <label className="flex items-center gap-1">
+        체류
+        <input
+          type="number"
+          inputMode="numeric"
+          min={5}
+          max={600}
+          step={5}
+          aria-label={`${title} 체류시간(분)`}
+          value={dur.value}
+          onChange={(e) => dur.setValue(e.target.value)}
+          onBlur={() => dur.dirty && onEdit({ type: "setDur", itemId: row.id, dur: Number(dur.commit()) })}
+          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+          className={`${input} w-16`}
+        />
+        분
+      </label>
+      {isRest ? (
+        <label className="flex min-w-0 flex-1 items-center gap-1">
+          이름
+          <input
+            type="text"
+            maxLength={60}
+            aria-label={`${title} 이름`}
+            value={name.value}
+            onChange={(e) => name.setValue(e.target.value)}
+            onBlur={() => name.dirty && onEdit({ type: "rename", itemId: row.id, title: name.commit() })}
+            onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+            className={`${input} min-w-0 flex-1`}
+          />
+        </label>
+      ) : (
+        <label className="flex min-w-0 flex-1 items-center gap-1">
+          장소
+          <select
+            aria-label={`${title} 장소 바꾸기`}
+            value={row.item.p ?? ""}
+            disabled={mandatory}
+            title={mandatory ? "필수 방문지는 다른 장소로 바꿀 수 없어요" : undefined}
+            onChange={(e) => e.target.value !== row.item.p && onEdit({ type: "setPlace", itemId: row.id, placeId: e.target.value })}
+            className={`${input} min-w-0 flex-1 disabled:opacity-50`}
+          >
+            {placeOptions.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+          </select>
+        </label>
+      )}
+    </div>
   );
 }
 

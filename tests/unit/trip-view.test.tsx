@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
   addPlace: vi.fn(),
   deletePhoto: vi.fn(),
   uploadTripPhoto: vi.fn(),
+  setDayStart: vi.fn(),
 }));
 
 vi.mock("next/dynamic", () => ({
@@ -29,6 +30,7 @@ vi.mock("@/app/(app)/trips/actions", () => ({
   updateProgress: h.updateProgress,
   addPlace: h.addPlace,
   deletePhoto: h.deletePhoto,
+  setDayStart: h.setDayStart,
   registerPhoto: vi.fn(),
   deleteTrip: vi.fn(),
 }));
@@ -61,6 +63,7 @@ beforeEach(() => {
   h.updateProgress.mockReset().mockResolvedValue({ ok: true });
   h.addPlace.mockReset().mockResolvedValue({ ok: true });
   h.deletePhoto.mockReset().mockResolvedValue({ ok: true });
+  h.setDayStart.mockReset().mockResolvedValue({ ok: true });
   h.uploadTripPhoto.mockReset().mockResolvedValue({ ok: true });
   Element.prototype.scrollIntoView = vi.fn();
   window.confirm = vi.fn(() => true);
@@ -557,5 +560,66 @@ describe("소감과 사진", () => {
       fireEvent.change(input, { target: { files: [new File(["a"], "a.jpg", { type: "image/jpeg" })] } });
     });
     await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("사진을 올리지 못했어요"));
+  });
+});
+
+describe("시간·블록 편집", () => {
+  const enter = () => fireEvent.click(screen.getByRole("button", { name: "일정 편집" }));
+
+  it("하루 출발 시각을 바꾸면 첫 일정 시각이 바로 따라가고 저장된다", () => {
+    renderView();
+    expect(screen.queryByLabelText("1일차 출발 시각")).toBeNull(); // 편집 모드에서만
+    enter();
+    const input = screen.getByLabelText("1일차 출발 시각") as HTMLInputElement;
+    expect(input.value).toBe("11:30");
+    fireEvent.change(input, { target: { value: "09:00" } });
+    expect((screen.getByLabelText("1일차 출발 시각") as HTMLInputElement).value).toBe("09:00");
+    expect(stop("d1-parking").textContent).toContain("09:00–09:20");
+    expect(h.setDayStart).toHaveBeenCalledWith("trip-1", 1, "09:00");
+  });
+
+  it("체류시간을 분 단위로 직접 입력하고 입력을 마치면 저장된다", () => {
+    renderView();
+    enter();
+    const input = screen.getByLabelText("한옥마을 인근 주차 체류시간(분)") as HTMLInputElement;
+    expect(input.value).toBe("20");
+    fireEvent.change(input, { target: { value: "193" } });
+    expect(h.editDay).not.toHaveBeenCalled(); // 입력 중에는 저장하지 않는다
+    fireEvent.blur(input);
+    expect(h.editDay).toHaveBeenCalledWith("trip-1", "balanced", 1, { type: "setDur", itemId: "d1-parking", dur: 193 });
+    expect(stop("d1-parking").textContent).toContain("193분");
+  });
+
+  it("범위를 벗어난 체류시간은 오류를 알리고 반영하지 않는다", () => {
+    renderView();
+    enter();
+    const input = screen.getByLabelText("한옥마을 인근 주차 체류시간(분)");
+    fireEvent.change(input, { target: { value: "2" } });
+    fireEvent.blur(input);
+    expect(screen.getByRole("alert").textContent).toContain("5~600분");
+    expect(stop("d1-parking").textContent).toContain("20분");
+  });
+
+  it("블록의 장소를 바꾸면 그 자리에서 이름과 시간이 바뀐다 (필수 방문지는 잠김)", () => {
+    renderView();
+    enter();
+    const sel = screen.getByLabelText("초코파이·길거리 간식 장소 바꾸기") as HTMLSelectElement;
+    fireEvent.change(sel, { target: { value: "cafe" } });
+    expect(stop("d1-snack").textContent).toContain("한옥 카페 휴식");
+    expect(h.editDay).toHaveBeenCalledWith("trip-1", "balanced", 1, { type: "setPlace", itemId: "d1-snack", placeId: "cafe" });
+    expect((screen.getByLabelText("전동성당 장소 바꾸기") as HTMLSelectElement).disabled).toBe(true);
+  });
+
+  it("장소 없는 일정은 이름을 바꿀 수 있다", () => {
+    renderView();
+    enter();
+    fireEvent.change(screen.getByLabelText("일정 이름"), { target: { value: "휴게소 들르기" } });
+    fireEvent.click(screen.getByRole("button", { name: "장소 없는 일정 추가" }));
+    const nameInput = screen.getByLabelText("휴게소 들르기 이름") as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: "운전 이동" } });
+    fireEvent.blur(nameInput);
+    expect(screen.getByText("운전 이동", { selector: "span" })).toBeTruthy();
+    const call = h.editDay.mock.calls.find((c) => c[3]?.type === "rename");
+    expect(call?.[3]).toMatchObject({ type: "rename", title: "운전 이동" });
   });
 });

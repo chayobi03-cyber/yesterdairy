@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { editDay, updateProgress, addPlace, deletePhoto, type Result } from "@/app/(app)/trips/actions";
+import { editDay, updateProgress, addPlace, deletePhoto, setDayStart, type Result } from "@/app/(app)/trips/actions";
 import { uploadTripPhoto } from "./photo-upload";
 import { MAX_FILES_PER_PICK, canAddPhotos } from "./photos";
 import { uid } from "./engine";
 import type { NewPlaceInput } from "./day-ops";
 import type { ProgressPatch } from "./progress";
 import {
-  applyNewPlace, applyOp, applyProgress, snapshotSignature,
+  applyDayStart, applyNewPlace, applyOp, applyProgress, snapshotSignature,
   type DayOpOrReset, type TripSnapshot,
 } from "./view-model";
 
@@ -102,6 +102,17 @@ export function useTripState(initial: TripSnapshot) {
     [mutate],
   );
 
+  const changeDayStart = useCallback(
+    (day: number, start: string) => {
+      const tripId = latest.current.tripId;
+      return mutate(
+        (s) => applyDayStart(s, day, start),
+        () => setDayStart(tripId, day, start),
+      );
+    },
+    [mutate],
+  );
+
   const patchProgress = useCallback(
     (itemId: string, patch: ProgressPatch) => {
       const tripId = latest.current.tripId;
@@ -176,5 +187,5 @@ export function useTripState(initial: TripSnapshot) {
 
   const clearError = useCallback(() => setError(null), []);
 
-  return { snap, pending, uploading, error, clearError, edit, patchProgress, createPlace, addPhotos, removePhoto };
+  return { snap, pending, uploading, error, clearError, edit, changeDayStart, patchProgress, createPlace, addPhotos, removePhoto };
 }

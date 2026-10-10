@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { jeonjuTemplate } from "../../src/lib/trip/templates/jeonju";
 import {
-  applyNewPlace, applyOp, applyProgress, buildRows, candidatePins, currentStopId, dayKey, dayLabel, daySummary, dayStats,
+  applyDayStart, applyNewPlace, applyOp, applyProgress, buildRows, candidatePins, currentStopId, dayKey, dayLabel, daySummary, dayStats,
   excludedMandatory, getDayItems, nextStopId, routeStops, snapshotSignature, totalCost, type TripSnapshot,
 } from "../../src/lib/trip/view-model";
 import type { NewPlaceInput } from "../../src/lib/trip/day-ops";
@@ -217,5 +217,22 @@ describe("고정 시각과 하루 요약", () => {
     const cleared = applyOp(set.snapshot, PLAN, 1, { type: "setAt", itemId: "d1-snack", at: null });
     if (!cleared.ok) throw new Error(cleared.error);
     expect(getDayItems(cleared.snapshot, PLAN, 1).find((i) => i.id === "d1-snack")?.at).toBeUndefined();
+  });
+});
+
+describe("applyDayStart", () => {
+  it("해당 날짜의 시작 시각만 바꾸고 시간표가 따라 움직인다", () => {
+    const s = base();
+    const r = applyDayStart(s, 1, "09:00");
+    if (!r.ok) throw new Error(r.error);
+    expect(r.snapshot.def.days.find((d) => d.n === 1)?.start).toBe("09:00");
+    expect(r.snapshot.def.days.find((d) => d.n === 2)?.start).toBe("09:30");
+    expect(s.def.days[0].start).toBe("11:30"); // 원본은 그대로
+    expect(buildRows(r.snapshot, PLAN, 1)[0].start).toBe(9 * 60);
+  });
+  it("형식이 틀리거나 없는 날짜는 거부", () => {
+    expect(applyDayStart(base(), 1, "9시").ok).toBe(false);
+    expect(applyDayStart(base(), 1, "24:00").ok).toBe(false);
+    expect(applyDayStart(base(), 9, "09:00").ok).toBe(false);
   });
 });
