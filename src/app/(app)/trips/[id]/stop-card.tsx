@@ -1,6 +1,6 @@
 "use client";
 
-import { CATS, catColor, directionsUrl, fmt, hasCoord } from "@/lib/trip/engine";
+import { CATS, catColor, directionsUrl, fmt, hasCoord, kakaoMapUrl, naverMapUrl } from "@/lib/trip/engine";
 import type { DayOp } from "@/lib/trip/day-ops";
 import type { ProgressPatch } from "@/lib/trip/progress";
 import { useSyncedField } from "@/lib/trip/use-synced-field";
@@ -251,9 +251,11 @@ function StopDetail({ row, onPickLocation, progress, onPatch, photos, canDeleteP
         <p className="rounded-xl bg-accent-50 px-3 py-2 text-xs text-accent-700">🕒 {place.hours} — 참고 정보이며 실시간 확인 결과가 아니에요.</p>
       )}
       {place && canRoute && (
-        <div className="flex gap-4 text-sm">
-          <a href={directionsUrl(place, "walk")} target="_blank" rel="noopener noreferrer" className="text-accent-600 underline">🚶 도보 길찾기 ↗</a>
-          <a href={directionsUrl(place, "car")} target="_blank" rel="noopener noreferrer" className="text-accent-600 underline">🚗 차량 길찾기 ↗</a>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+          <a href={kakaoMapUrl(place)} target="_blank" rel="noopener noreferrer" className="text-accent-600 underline">🗺 카카오맵 길찾기 ↗</a>
+          <a href={naverMapUrl(place)} target="_blank" rel="noopener noreferrer" className="text-accent-600 underline">네이버지도 ↗</a>
+          <a href={directionsUrl(place, "walk")} target="_blank" rel="noopener noreferrer" className="text-accent-600 underline">🚶 구글 도보 ↗</a>
+          <a href={directionsUrl(place, "car")} target="_blank" rel="noopener noreferrer" className="text-accent-600 underline">🚗 구글 차량 ↗</a>
         </div>
       )}
       {place?.approx && <p className="text-xs text-neutral-400">※ 지도 좌표는 근사치예요. 길찾기 전에 위치를 확인하세요.</p>}

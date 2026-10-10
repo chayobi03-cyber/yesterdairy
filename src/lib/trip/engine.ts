@@ -34,7 +34,7 @@ export function hasCoord(p?: Place | null): p is Place & { lat: number; lon: num
   return !!p && validCoord(p.lat, p.lon);
 }
 
-function haversineKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+export function haversineKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
   const rad = Math.PI / 180;
   const dLat = (b.lat - a.lat) * rad;
   const dLon = (b.lon - a.lon) * rad;
@@ -150,6 +150,24 @@ export function currentIndex(items: PlanItem[], status: Record<string, string | 
 export function directionsUrl(p: Place, mode: "walk" | "car"): string {
   const dest = hasCoord(p) ? `${p.lat},${p.lon}` : (p.addr || p.name);
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}&travelmode=${mode === "car" ? "driving" : "walking"}`;
+}
+
+// 국내에서는 구글 지도가 차량 길찾기를 지원하지 않고 도보도 부정확해서, 카카오맵·네이버지도로도 열 수 있게 한다.
+// 카카오맵 링크(앱키 불필요): 좌표가 있으면 "도착지=장소"로 길찾기(출발은 내 위치), 없으면 주소/이름 검색.
+export function kakaoMapUrl(p: Place): string {
+  if (hasCoord(p)) return `https://map.kakao.com/link/to/${encodeURIComponent(p.name)},${p.lat},${p.lon}`;
+  return `https://map.kakao.com/link/search/${encodeURIComponent(p.addr || p.name)}`;
+}
+
+// 네이버지도: 주소/이름 검색 (좌표 기반 길찾기 URL은 공식 형식이 불안정해 검색으로 연다)
+export function naverMapUrl(p: Place): string {
+  return `https://map.naver.com/p/search/${encodeURIComponent(p.addr || p.name)}`;
+}
+
+// 거리 표시: 1km 미만은 m(10m 단위), 이상은 km(소수 1자리)
+export function formatDistance(km: number): string {
+  if (km < 1) return `${Math.max(10, Math.round((km * 1000) / 10) * 10)}m`;
+  return `${km.toFixed(1)}km`;
 }
 
 // Google 지도 다중 경유 길찾기 URL: 첫 장소 -> 마지막 장소, 사이는 경유지.
