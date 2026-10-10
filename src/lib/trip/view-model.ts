@@ -1,6 +1,6 @@
 // 화면이 쓰는 여행 상태와 그 변환 (DB/React 비의존). 서버에서 받은 스냅샷을 클라이언트가
 // 들고 있다가, 탭할 때마다 여기 함수들로 "먼저 반영"하고 서버 액션은 뒤에서 저장한다.
-import { applyDayOp, type DayOp, type NewPlaceInput, buildPlace } from "./day-ops";
+import { applyDayOp, type Coord, type DayOp, type NewPlaceInput, buildPlace, setPlaceCoord } from "./day-ops";
 import { currentIndex, hasCoord, mandatoryStatus, timeline, validAt, type Row } from "./engine";
 import { applyProgressPatch, EMPTY_PROGRESS, type ProgressPatch } from "./progress";
 import type { Place, PlanItem, ProgressRow, TripComment, TripDef, TripPhoto } from "./types";
@@ -58,6 +58,30 @@ export function applyDayStart(
   if (!validAt(start)) return { ok: false, error: "시각은 HH:MM 형식으로 입력해주세요." };
   if (!s.def.days.some((d) => d.n === day)) return { ok: false, error: "없는 날짜예요." };
   return { ok: true, snapshot: { ...s, def: { ...s.def, days: s.def.days.map((d) => (d.n === day ? { ...d, start } : d)) } } };
+}
+
+// 장소의 지도 위치 바꾸기(coord=null이면 지우기). 같은 장소를 쓰는 모든 대안·날짜에 같이 반영된다.
+export function applyPlaceCoord(
+  s: TripSnapshot,
+  placeId: string,
+  coord: Coord | null,
+): { ok: true; snapshot: TripSnapshot } | { ok: false; error: string } {
+  const r = setPlaceCoord(s.def.places, placeId, coord);
+  if (!r.ok) return r;
+  return { ok: true, snapshot: { ...s, def: { ...s.def, places: r.places } } };
+}
+
+// 오늘 일정에 포함됐지만 좌표가 없어 지도에 안 나오는 장소 (같은 장소는 한 번만)
+export function unmappedStops(rows: StopRow[]): { itemId: string; placeId: string; name: string }[] {
+  const seen = new Set<string>();
+  const out: { itemId: string; placeId: string; name: string }[] = [];
+  for (const r of rows) {
+    const p = r.place;
+    if (!r.included || !p || hasCoord(p) || seen.has(p.id)) continue;
+    seen.add(p.id);
+    out.push({ itemId: r.id, placeId: p.id, name: p.name });
+  }
+  return out;
 }
 
 export function applyProgress(

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyDayOp, buildPlace, MAX_ITEMS_PER_DAY, type NewPlaceInput } from "../../src/lib/trip/day-ops";
+import { applyDayOp, buildPlace, setPlaceCoord, MAX_ITEMS_PER_DAY, type NewPlaceInput } from "../../src/lib/trip/day-ops";
 import { applyProgressPatch, EMPTY_PROGRESS } from "../../src/lib/trip/progress";
 import { MAX_CAS_ATTEMPTS, nextVersion } from "../../src/lib/trip/cas";
 import type { Place, PlanItem } from "../../src/lib/trip/types";
@@ -284,5 +284,38 @@ describe("applyDayOp setDur / setPlace / rename", () => {
     expect(long.ok && long.items[1].rest).toHaveLength(60);
     expect(applyDayOp(items, { type: "rename", itemId: "i2", title: "   " }, ctx).ok).toBe(false);
     expect(applyDayOp(items, { type: "rename", itemId: "i1", title: "x" }, ctx).ok).toBe(false);
+  });
+});
+
+describe("setPlaceCoord (지도 위치 지정)", () => {
+  const withCoord: Place[] = [
+    { id: "a", name: "근사 장소", lat: 35.1, lon: 127.1, approx: true },
+    { id: "b", name: "좌표 없음" },
+  ];
+
+  it("좌표를 정하면 소수 5자리로 반올림하고 '근사' 표시를 뗀다", () => {
+    const r = setPlaceCoord(withCoord, "a", { lat: 35.812345678, lon: 127.150987654 });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.places[0]).toMatchObject({ lat: 35.81235, lon: 127.15099 });
+    expect(r.places[0].approx).toBeUndefined();
+  });
+
+  it("좌표 없던 장소에도 지정할 수 있고, 원본 배열은 바뀌지 않는다", () => {
+    const r = setPlaceCoord(withCoord, "b", { lat: 35.8, lon: 127.1 });
+    expect(r.ok && r.places[1]).toMatchObject({ lat: 35.8, lon: 127.1 });
+    expect(withCoord[1].lat).toBeUndefined();
+  });
+
+  it("null이면 위치를 지운다", () => {
+    const r = setPlaceCoord(withCoord, "a", null);
+    expect(r.ok && r.places[0].lat).toBeUndefined();
+    expect(r.ok && r.places[0].approx).toBeUndefined();
+  });
+
+  it("범위를 벗어난 좌표와 없는 장소는 거부한다", () => {
+    expect(setPlaceCoord(withCoord, "a", { lat: 91, lon: 127 }).ok).toBe(false);
+    expect(setPlaceCoord(withCoord, "a", { lat: Number.NaN, lon: 127 }).ok).toBe(false);
+    expect(setPlaceCoord(withCoord, "zzz", { lat: 35, lon: 127 }).ok).toBe(false);
   });
 });

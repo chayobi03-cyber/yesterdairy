@@ -14,6 +14,7 @@ const h = vi.hoisted(() => ({
   deletePhoto: vi.fn(),
   uploadTripPhoto: vi.fn(),
   setDayStart: vi.fn(),
+  setPlaceLocation: vi.fn(),
   addComment: vi.fn(),
   deleteComment: vi.fn(),
 }));
@@ -33,6 +34,7 @@ vi.mock("@/app/(app)/trips/actions", () => ({
   addPlace: h.addPlace,
   deletePhoto: h.deletePhoto,
   setDayStart: h.setDayStart,
+  setPlaceLocation: h.setPlaceLocation,
   addComment: h.addComment,
   deleteComment: h.deleteComment,
   registerPhoto: vi.fn(),
@@ -69,10 +71,12 @@ beforeEach(() => {
   h.addPlace.mockReset().mockResolvedValue({ ok: true });
   h.deletePhoto.mockReset().mockResolvedValue({ ok: true });
   h.setDayStart.mockReset().mockResolvedValue({ ok: true });
+  h.setPlaceLocation.mockReset().mockResolvedValue({ ok: true });
   h.addComment.mockReset().mockResolvedValue({ ok: true });
   h.deleteComment.mockReset().mockResolvedValue({ ok: true });
   h.uploadTripPhoto.mockReset().mockResolvedValue({ ok: true });
   Element.prototype.scrollIntoView = vi.fn();
+  window.scrollTo = vi.fn();
   window.confirm = vi.fn(() => true);
 });
 afterEach(cleanup);
@@ -670,5 +674,61 @@ describe("시간·블록 편집", () => {
     expect(screen.getByText("운전 이동", { selector: "span" })).toBeTruthy();
     const call = h.editDay.mock.calls.find((c) => c[3]?.type === "rename");
     expect(call?.[3]).toMatchObject({ type: "rename", title: "운전 이동" });
+  });
+});
+
+describe("지도 위치 지정", () => {
+  const pickProps = () => h.mapProps.current as { picking: boolean; pickPoint: [number, number] | null; onPickPoint: (lat: number, lon: number) => void };
+
+  it("좌표가 없어 지도에 안 나오는 장소를 알려주고, 누르면 위치 지정 모드가 된다", () => {
+    renderView();
+    const group = screen.getByRole("group", { name: "지도에 없는 장소" });
+    expect(within(group).getByRole("button", { name: "숙소 체크인 위치 지정" })).toBeTruthy();
+    expect(pickProps().picking).toBe(false);
+    fireEvent.click(within(group).getByRole("button", { name: "숙소 체크인 위치 지정" }));
+    expect(screen.getByRole("region", { name: "위치 지정" }).textContent).toContain("숙소 체크인");
+    expect(pickProps().picking).toBe(true);
+    expect((screen.getByRole("button", { name: "여기로 저장" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("지도를 눌러 정한 위치를 저장하면 핀이 바로 생기고 서버에도 저장된다", async () => {
+    renderView();
+    fireEvent.click(screen.getByRole("button", { name: "숙소 체크인 위치 지정" }));
+    act(() => pickProps().onPickPoint(35.81234567, 127.15111111));
+    expect(pickProps().pickPoint).toEqual([35.81234567, 127.15111111]);
+    fireEvent.click(screen.getByRole("button", { name: "여기로 저장" }));
+    // 낙관적 반영: 모드가 끝나고 숙소 핀(6번)이 지도에 생긴다
+    expect(pickProps().picking).toBe(false);
+    expect(mapStops().some((p) => p.id === "d1-stay" && p.number === 6)).toBe(true);
+    expect(screen.queryByRole("group", { name: "지도에 없는 장소" })).toBeNull();
+    await waitFor(() => expect(h.setPlaceLocation).toHaveBeenCalledWith("trip-1", "stay", { lat: 35.81234567, lon: 127.15111111 }));
+  });
+
+  it("취소하면 아무것도 저장하지 않는다", () => {
+    renderView();
+    fireEvent.click(screen.getByRole("button", { name: "숙소 체크인 위치 지정" }));
+    act(() => pickProps().onPickPoint(35.8, 127.1));
+    fireEvent.click(screen.getByRole("button", { name: "취소" }));
+    expect(pickProps().picking).toBe(false);
+    expect(h.setPlaceLocation).not.toHaveBeenCalled();
+    expect(mapStops().some((p) => p.id === "d1-stay")).toBe(false);
+  });
+
+  it("편집 모드에서 이미 지도에 있는 장소의 위치도 고칠 수 있다 (현재 위치에서 시작)", () => {
+    renderView();
+    fireEvent.click(screen.getByRole("button", { name: "일정 편집" }));
+    fireEvent.click(screen.getByRole("button", { name: "전동성당 지도 위치 수정" }));
+    expect(pickProps().picking).toBe(true);
+    expect(pickProps().pickPoint).toEqual([35.8133, 127.1497]);
+  });
+
+  it("저장이 실패하면 오류를 알리고 서버 상태로 되돌린다", async () => {
+    h.setPlaceLocation.mockResolvedValue({ ok: false, error: "저장 실패" });
+    renderView();
+    fireEvent.click(screen.getByRole("button", { name: "숙소 체크인 위치 지정" }));
+    act(() => pickProps().onPickPoint(35.8, 127.1));
+    fireEvent.click(screen.getByRole("button", { name: "여기로 저장" }));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("저장 실패"));
+    expect(h.refresh).toHaveBeenCalled();
   });
 });

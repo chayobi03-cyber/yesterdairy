@@ -19,6 +19,10 @@ export type TripMapProps = {
   visible: boolean;
   onSelect: (id: string) => void;
   onAdd: (placeId: string) => void;
+  // 위치 지정 모드: 지도를 누른 곳이 pickPoint가 된다 (모드가 켜진 동안 핀 선택·팝업은 그대로 동작)
+  picking?: boolean;
+  pickPoint?: [number, number] | null;
+  onPickPoint?: (lat: number, lon: number) => void;
 };
 
 const ACCENT = "#ea8a3d";
@@ -35,6 +39,13 @@ function pinIcon(stop: MapStop, selected: boolean): L.DivIcon {
     "box-shadow:0 2px 8px #3336", finished ? "opacity:.6" : "",
   ].join(";");
   return L.divIcon({ className: "", html: el, iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
+}
+
+function pickIcon(): L.DivIcon {
+  const el = document.createElement("div");
+  el.textContent = "📍";
+  el.style.cssText = "font-size:28px;line-height:28px;transform:translate(-50%,-100%);filter:drop-shadow(0 2px 3px #0005)";
+  return L.divIcon({ className: "", html: el, iconSize: [0, 0], iconAnchor: [0, 0] });
 }
 
 function candidateIcon(c: CandidatePin): L.DivIcon {
@@ -77,16 +88,17 @@ function popupFor(info: { name: string; addr?: string; hours?: string; lat: numb
 }
 
 export default function TripMap(props: TripMapProps) {
-  const { stops, candidates, selectedId, focusNonce, fitNonce, center, visible, onSelect, onAdd } = props;
+  const { stops, candidates, selectedId, focusNonce, fitNonce, center, visible, onSelect, onAdd, picking = false, pickPoint = null, onPickPoint } = props;
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
   const markersRef = useRef<Map<string, { marker: L.Marker; stop: MapStop }>>(new Map());
   // 콜백은 최신 값을 쓰되 지도를 다시 만들지 않도록 ref에 둔다
-  const cb = useRef({ onSelect, onAdd });
+  const cb = useRef({ onSelect, onAdd, onPickPoint, picking });
   useEffect(() => {
-    cb.current = { onSelect, onAdd };
+    cb.current = { onSelect, onAdd, onPickPoint, picking };
   });
+  const pickMarkerRef = useRef<L.Marker | null>(null);
 
   // 동선이 실제로 바뀌었을 때만 화면 맞춤을 다시 한다 (선택만 바뀔 때는 맞춤하지 않음)
   const routeKey = stops.map((s) => `${s.id}@${s.lat},${s.lon}`).join("|") + "#" + candidates.length;
@@ -97,9 +109,13 @@ export default function TripMap(props: TripMapProps) {
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
     layerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
+    map.on("click", (e: L.LeafletMouseEvent) => {
+      if (cb.current.picking) cb.current.onPickPoint?.(e.latlng.lat, e.latlng.lng);
+    });
     const markers = markersRef.current;
     return () => {
       map.remove();
+      pickMarkerRef.current = null;
       mapRef.current = null;
       layerRef.current = null;
       markers.clear();
@@ -172,6 +188,25 @@ export default function TripMap(props: TripMapProps) {
     else map.setView(center, 15);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeKey, fitNonce]);
+
+  // 위치 지정 모드: 누른 곳에 📍 핀을 보여주고, 십자 커서로 바꾼다. 지도 높이가 바뀌므로 크기도 다시 계산한다.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    map.getContainer().style.cursor = picking ? "crosshair" : "";
+    const t = setTimeout(() => map.invalidateSize(), 60);
+    return () => clearTimeout(t);
+  }, [picking]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    pickMarkerRef.current?.remove();
+    pickMarkerRef.current = null;
+    if (!picking || !pickPoint) return;
+    pickMarkerRef.current = L.marker(pickPoint, { icon: pickIcon(), interactive: false, zIndexOffset: 1000 }).addTo(map);
+    if (!map.getBounds().contains(pickPoint)) map.panTo(pickPoint);
+  }, [picking, pickPoint]);
 
   // 접었다 펼친 뒤 크기를 다시 계산
   useEffect(() => {
