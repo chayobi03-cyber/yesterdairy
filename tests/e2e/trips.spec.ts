@@ -61,7 +61,7 @@ function countServerActions(page: Page) {
 test("family trip: map + ordered stops on one page, instant edits, shared with family only", async ({ page, browser }) => {
   // 저장 중에 페이지를 떠나면 앱이 확인창을 띄운다(use-leave-guard). 테스트는 이동을 계속해야 하므로 수락한다.
   page.on("dialog", (d) => {
-    if (d.message().includes("저장 중인 변경")) void d.accept();
+    if (d.type() === "beforeunload" || d.message().includes("저장 중인 변경")) void d.accept();
   });
   // 시나리오가 길다(가입 2명 + 지도/목록/편집/동시 편집/삭제, 모두 실제 Supabase 왕복).
   // 전역 90초보다 넉넉히 잡는다.
