@@ -184,17 +184,15 @@ test("family trip: map + ordered stops on one page, instant edits, shared with f
     await expect(page.getByRole("region", { name: "경기전 상세" })).toBeVisible();
   });
 
-  await step("day and plan switching update both the list and the map", TRIP_URL, async () => {
+  await step("day switching updates both the list and the map (single plan: no plan selector)", TRIP_URL, async () => {
     await page.getByRole("button", { name: "2일차" }).click();
     await expect(page.getByTestId("now-bar")).toContainText("1. 전주향교");
     await expect(pins(page)).toHaveCount(3);
     await page.getByRole("button", { name: "1일차" }).click();
     await expect(pins(page)).toHaveCount(7);
 
-    await page.getByRole("combobox", { name: "여행 대안" }).selectOption("experience");
-    await expect(stop(page, "d1-hanok-exp")).toBeVisible();
-    await page.getByRole("combobox", { name: "여행 대안" }).selectOption("balanced");
-    await expect(stop(page, "d1-hanok-exp")).toHaveCount(0);
+    // 일정은 하나뿐이라 대안 선택이 없다
+    await expect(page.getByRole("combobox", { name: "여행 대안" })).toHaveCount(0);
   });
 
   await step("edit mode: required places are protected", TRIP_URL, async () => {

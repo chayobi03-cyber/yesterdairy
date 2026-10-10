@@ -484,11 +484,18 @@ describe("기타", () => {
     expect(screen.getByText(/지도에 표시할 장소가 아직 없어요/)).toBeTruthy();
   });
 
-  it("대안(균형/체험/여유)을 바꾸면 그 대안의 일정이 보인다", () => {
+  it("일정이 하나뿐이라 일정(대안) 선택은 보이지 않는다", () => {
     renderView();
-    fireEvent.change(screen.getByRole("combobox", { name: "여행 대안" }), { target: { value: "experience" } });
-    expect(orderOfStops()).toContain("d1-hanok-exp");
-    expect(orderOfStops()).not.toContain("d1-hanok-walk");
+    expect(screen.queryByRole("combobox", { name: "여행 대안" })).toBeNull();
+    expect(Object.keys(jeonjuTemplate.plans)).toEqual(["balanced"]);
+  });
+
+  it("보고 있던 일정이 사라지면 기본 일정으로 보여준다 (빈 화면이 되지 않게)", () => {
+    const s = snapshot();
+    s.def.plans = { main: structuredClone(s.def.plans.balanced) };
+    s.def.defaultPlan = "main";
+    render(<TripView initial={s} isCreator={false} userId="u1" userName="나" initialPlan="balanced" initialDay={1} />);
+    expect(orderOfStops()).toContain("d1-parking");
   });
 });
 
