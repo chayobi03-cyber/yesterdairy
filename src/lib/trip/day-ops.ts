@@ -12,6 +12,12 @@ export type DayOp =
   | { type: "dur"; itemId: string; delta: number }
   // 고정 시작 시각 지정/해제 (null이면 해제)
   | { type: "setAt"; itemId: string; at: string | null }
+  // 체류시간을 분 단위로 직접 지정 (5~600)
+  | { type: "setDur"; itemId: string; dur: number }
+  // 일정 블록의 장소를 다른 장소로 바꾸기 (필수 방문지 블록은 불가)
+  | { type: "setPlace"; itemId: string; placeId: string }
+  // 장소 없는 일정(이동·휴식 등)의 이름 바꾸기
+  | { type: "rename"; itemId: string; title: string }
   // id: 화면이 먼저 반영(낙관적 업데이트)할 때 서버와 같은 항목 id를 쓰도록 호출자가 정한다
   | { type: "add"; placeId: string; id?: string }
   | { type: "addRest"; title: string; id?: string }
@@ -77,6 +83,32 @@ export function applyDayOp(
       } else {
         return { ok: false, error: "시각은 HH:MM 형식으로 입력해주세요." };
       }
+      return { ok: true, items };
+    }
+    case "setDur": {
+      const it = items.find((i) => i.id === op.itemId);
+      if (!it) return { ok: false, error: "항목을 찾을 수 없어요." };
+      if (!Number.isFinite(op.dur) || op.dur < 5 || op.dur > 600) return { ok: false, error: "체류시간은 5~600분으로 입력해주세요." };
+      it.dur = Math.round(op.dur);
+      return { ok: true, items };
+    }
+    case "setPlace": {
+      const it = items.find((i) => i.id === op.itemId);
+      if (!it) return { ok: false, error: "항목을 찾을 수 없어요." };
+      if (!it.p) return { ok: false, error: "장소가 없는 일정은 장소를 바꿀 수 없어요." };
+      if (ctx.mandatory.includes(it.p)) return { ok: false, error: "필수 방문지는 다른 장소로 바꿀 수 없어요." };
+      if (!ctx.places.some((p) => p.id === op.placeId)) return { ok: false, error: "알 수 없는 장소예요." };
+      it.p = op.placeId;
+      delete it.dur; // 이전 장소에 맞춘 체류시간은 버리고 새 장소의 기본값을 쓴다
+      return { ok: true, items };
+    }
+    case "rename": {
+      const it = items.find((i) => i.id === op.itemId);
+      if (!it) return { ok: false, error: "항목을 찾을 수 없어요." };
+      if (it.rest == null) return { ok: false, error: "장소가 있는 일정은 이름을 바꿀 수 없어요. 장소를 바꿔주세요." };
+      const title = op.title.trim().slice(0, 60);
+      if (!title) return { ok: false, error: "일정 이름을 입력해주세요." };
+      it.rest = title;
       return { ok: true, items };
     }
     case "add": {

@@ -33,7 +33,7 @@ const mini = (active = false) =>
   `min-h-9 shrink-0 rounded-full border px-3 text-xs font-medium ${active ? "border-accent-400 bg-accent-400 text-white" : "border-line bg-card text-neutral-600"}`;
 
 export function TripView({ initial, isCreator, userId, initialPlan, initialDay }: Props) {
-  const { snap, pending, uploading, error, clearError, edit, patchProgress, createPlace, addPhotos, removePhoto } = useTripState(initial);
+  const { snap, pending, uploading, error, clearError, edit, changeDayStart, patchProgress, createPlace, addPhotos, removePhoto } = useTripState(initial);
   const def = snap.def;
   const planIds = Object.keys(def.plans);
 
@@ -126,6 +126,8 @@ export function TripView({ initial, isCreator, userId, initialPlan, initialDay }
     edit(plan, day, op);
   };
 
+  const placeOptions = useMemo(() => def.places.map((p) => ({ id: p.id, name: p.name })), [def.places]);
+  const dayStart = def.days.find((d) => d.n === day)?.start ?? "09:00";
   const cost = totalCost(snap);
   const hasMap = routePins.length > 0 || showAll;
 
@@ -255,6 +257,19 @@ export function TripView({ initial, isCreator, userId, initialPlan, initialDay }
       )}
       {cost > 0 && <p className="-mt-1 text-xs text-neutral-400">누적 지출 기록 {cost.toLocaleString("ko-KR")}원</p>}
 
+      {editMode && (
+        <label className="flex items-center justify-between gap-2 rounded-2xl border border-line bg-card px-3 py-2 text-sm">
+          <span>{dayLabel(snap, day)} 출발(시작) 시각 <span className="block text-xs text-neutral-400">모든 대안에 같은 시각이 적용돼요</span></span>
+          <input
+            type="time"
+            aria-label={`${dayLabel(snap, day)} 출발 시각`}
+            value={dayStart}
+            onChange={(e) => e.target.value && changeDayStart(day, e.target.value)}
+            className="min-h-10 rounded-lg border border-line bg-card px-2 text-sm"
+          />
+        </label>
+      )}
+
       {visibleRows.length === 0 ? (
         <p className="rounded-2xl border border-line bg-card p-4 text-sm text-neutral-500">이 날짜에는 일정이 없어요. 「일정 편집」에서 장소를 추가해보세요.</p>
       ) : (
@@ -288,6 +303,7 @@ export function TripView({ initial, isCreator, userId, initialPlan, initialDay }
                   onQuickDone={quickDone}
                   onPatch={patchProgress}
                   onEdit={onEdit}
+                  placeOptions={placeOptions}
                   photos={snap.photos.filter((ph) => ph.itemId === r.id)}
                   canDeletePhoto={(ph) => isCreator || ph.createdBy === userId}
                   onAddPhotos={(itemId, files) => void addPhotos(itemId, files)}

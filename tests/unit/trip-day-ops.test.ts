@@ -241,3 +241,48 @@ describe("applyDayOp setAt", () => {
     expect(applyDayOp(items, { type: "setAt", itemId: "nope", at: "10:00" }, ctx).ok).toBe(false);
   });
 });
+
+describe("applyDayOp setDur / setPlace / rename", () => {
+  const places = [
+    { id: "a", name: "A", dur: 30 },
+    { id: "b", name: "B", dur: 45 },
+    { id: "m", name: "필수", dur: 60 },
+  ];
+  const items = [
+    { id: "i1", p: "a", dur: 90 },
+    { id: "i2", rest: "이동" },
+    { id: "i3", p: "m" },
+  ];
+  const ctx = { places, mandatory: ["m"] };
+
+  it("setDur: 분 단위로 직접 지정 (5~600, 정수로 반올림)", () => {
+    const r = applyDayOp(items, { type: "setDur", itemId: "i2", dur: 193 }, ctx);
+    expect(r.ok && r.items[1].dur).toBe(193);
+    expect(applyDayOp(items, { type: "setDur", itemId: "i2", dur: 12.4 }, ctx)).toMatchObject({ ok: true });
+    for (const bad of [4, 601, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(applyDayOp(items, { type: "setDur", itemId: "i2", dur: bad }, ctx).ok).toBe(false);
+    }
+    expect(applyDayOp(items, { type: "setDur", itemId: "nope", dur: 30 }, ctx).ok).toBe(false);
+  });
+
+  it("setPlace: 블록의 장소를 바꾸고 이전 장소에 맞춘 체류시간은 버린다", () => {
+    const r = applyDayOp(items, { type: "setPlace", itemId: "i1", placeId: "b" }, ctx);
+    expect(r.ok && r.items[0]).toEqual({ id: "i1", p: "b" });
+    expect(items[0]).toEqual({ id: "i1", p: "a", dur: 90 }); // 입력은 바뀌지 않는다
+  });
+
+  it("setPlace: 필수 방문지 블록, 장소 없는 일정, 없는 장소는 거부", () => {
+    expect(applyDayOp(items, { type: "setPlace", itemId: "i3", placeId: "a" }, ctx).ok).toBe(false);
+    expect(applyDayOp(items, { type: "setPlace", itemId: "i2", placeId: "a" }, ctx).ok).toBe(false);
+    expect(applyDayOp(items, { type: "setPlace", itemId: "i1", placeId: "zzz" }, ctx).ok).toBe(false);
+  });
+
+  it("rename: 장소 없는 일정만, 공백 제거·60자 제한·빈 이름 거부", () => {
+    const r = applyDayOp(items, { type: "rename", itemId: "i2", title: "  점심 이동  " }, ctx);
+    expect(r.ok && r.items[1].rest).toBe("점심 이동");
+    const long = applyDayOp(items, { type: "rename", itemId: "i2", title: "가".repeat(100) }, ctx);
+    expect(long.ok && long.items[1].rest).toHaveLength(60);
+    expect(applyDayOp(items, { type: "rename", itemId: "i2", title: "   " }, ctx).ok).toBe(false);
+    expect(applyDayOp(items, { type: "rename", itemId: "i1", title: "x" }, ctx).ok).toBe(false);
+  });
+});

@@ -1,7 +1,7 @@
 // 화면이 쓰는 여행 상태와 그 변환 (DB/React 비의존). 서버에서 받은 스냅샷을 클라이언트가
 // 들고 있다가, 탭할 때마다 여기 함수들로 "먼저 반영"하고 서버 액션은 뒤에서 저장한다.
 import { applyDayOp, type DayOp, type NewPlaceInput, buildPlace } from "./day-ops";
-import { currentIndex, hasCoord, mandatoryStatus, timeline, type Row } from "./engine";
+import { currentIndex, hasCoord, mandatoryStatus, timeline, validAt, type Row } from "./engine";
 import { applyProgressPatch, EMPTY_PROGRESS, type ProgressPatch } from "./progress";
 import type { Place, PlanItem, ProgressRow, TripDef, TripPhoto } from "./types";
 
@@ -45,6 +45,17 @@ export function applyOp(
   const r = applyDayOp(getDayItems(s, plan, day), op, { places: s.def.places, mandatory: s.def.mandatory ?? [] });
   if (!r.ok) return r;
   return { ok: true, snapshot: { ...s, overrides: { ...s.overrides, [key]: r.items } } };
+}
+
+// 하루의 출발(시작) 시각 바꾸기. 모든 대안이 같은 날짜 시작 시각을 공유한다.
+export function applyDayStart(
+  s: TripSnapshot,
+  day: number,
+  start: string,
+): { ok: true; snapshot: TripSnapshot } | { ok: false; error: string } {
+  if (!validAt(start)) return { ok: false, error: "시각은 HH:MM 형식으로 입력해주세요." };
+  if (!s.def.days.some((d) => d.n === day)) return { ok: false, error: "없는 날짜예요." };
+  return { ok: true, snapshot: { ...s, def: { ...s.def, days: s.def.days.map((d) => (d.n === day ? { ...d, start } : d)) } } };
 }
 
 export function applyProgress(

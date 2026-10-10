@@ -210,6 +210,13 @@ test("family trip: map + ordered stops on one page, instant edits, shared with f
     await expect(stop(page, "d1-dinner")).toContainText("18:00");
     await expect(page.getByTestId("day-summary")).toContainText("대기");
 
+    // 하루 출발 시각과 체류시간 직접 입력: 맨 앞(점심)이 출발 시각부터 시작하고 입력한 분만큼 길어진다
+    await page.getByLabel("1일차 출발 시각").fill("10:00");
+    await expect(stop(page, "d1-lunch")).toContainText("10:00–");
+    await page.getByLabel("전주비빔밥 점심 체류시간(분)").fill("75");
+    await page.getByLabel("전주비빔밥 점심 체류시간(분)").blur();
+    await expect(stop(page, "d1-lunch")).toContainText("10:00–11:15");
+
     await page.getByLabel("일정 이름").fill("카페 휴식");
     await page.getByRole("button", { name: "장소 없는 일정 추가" }).click();
     await expect(page.getByText("카페 휴식", { exact: true })).toBeVisible();
@@ -263,6 +270,8 @@ test("family trip: map + ordered stops on one page, instant edits, shared with f
       await expect(detail2).toBeVisible();
       await expect(detail2.getByLabel(/메모/)).toHaveValue(`예약 완료 ${runId}`);
       await expect(detail2.getByRole("button", { name: "📍 도착" })).toHaveAttribute("aria-pressed", "true");
+      // 첫 번째 구성원이 바꾼 출발 시각·체류시간이 두 번째 구성원 화면에도 반영돼 있다
+      await expect(stop(page2, "d1-lunch")).toContainText("10:00–11:15");
       // 소감·사진도 가족에게 보인다 (테이블 RLS + 스토리지 RLS)
       await expect(detail2.getByLabel(/소감 \(가족 모두에게 보여요\)/)).toHaveValue(`비빔밥이 맛있었어요 ${runId}`);
       await expect(detail2.getByRole("img", { name: "전주비빔밥 점심 사진 1" })).toBeVisible();

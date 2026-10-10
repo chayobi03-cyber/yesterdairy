@@ -6,7 +6,7 @@ import { getCurrentUser } from "@/lib/supabase/get-current-user";
 import { loadTrip } from "@/lib/trip/data";
 import { CONFLICT_MESSAGE, MAX_CAS_ATTEMPTS, nextVersion } from "@/lib/trip/cas";
 import { applyDayOp, buildPlace, MAX_PLACES, type DayOp, type NewPlaceInput } from "@/lib/trip/day-ops";
-import { validateTrip } from "@/lib/trip/engine";
+import { validAt, validateTrip } from "@/lib/trip/engine";
 import { applyProgressPatch, EMPTY_PROGRESS, type ProgressPatch, type ProgressState } from "@/lib/trip/progress";
 import { PHOTO_ID_RE, MAX_PHOTO_BYTES, canAddPhotos, photoPaths } from "@/lib/trip/photos";
 import { jeonjuTemplate } from "@/lib/trip/templates/jeonju";
@@ -300,6 +300,39 @@ export async function addPlace(
   if (input.addNow) {
     const r = await editDay(tripId, input.planId, input.day, { type: "add", placeId: built.place.id, id: input.itemId });
     if (!r.ok) return { ok: false, error: `장소는 저장했지만 일정에 넣지 못했어요: ${r.error}` };
+  }
+  return { ok: true };
+}
+
+
+/* ---------- 하루 출발 시각 ---------- */
+
+// def.days[].start를 바꾼다. addPlace처럼 trips.updated_at으로 낙관적 잠금을 하고,
+// 충돌하면 최신 def를 다시 읽어 같은 변경을 다시 적용한다.
+export async function setDayStart(tripId: string, day: number, start: string): Promise<Result> {
+  const c = await ctx();
+  if (!c) return NOT_SIGNED_IN;
+  if (!validAt(start)) return { ok: false, error: "시각은 HH:MM 형식으로 입력해주세요." };
+  const { supabase } = c;
+
+  for (let attempt = 0; attempt < MAX_CAS_ATTEMPTS; attempt++) {
+    const { data: row, error: readError } = await supabase.from("trips").select("def, updated_at").eq("id", tripId).maybeSingle();
+    if (readError) return { ok: false, error: readError.message };
+    if (!row) return { ok: false, error: "여행을 찾을 수 없어요." };
+
+    const def = row.def as TripDef;
+    if (!def.days.some((d) => d.n === day)) return { ok: false, error: "없는 날짜예요." };
+    const next = { ...def, days: def.days.map((d) => (d.n === day ? { ...d, start } : d)) };
+
+    const { data: updated, error } = await supabase
+      .from("trips")
+      .update({ def: next, updated_at: nextVersion(row.updated_at, Date.now()) })
+      .eq("id", tripId)
+      .eq("updated_at", row.updated_at)
+      .select("id");
+    if (error) return { ok: false, error: error.message };
+    if (updated?.length) return { ok: true };
+    if (attempt === MAX_CAS_ATTEMPTS - 1) return { ok: false, error: CONFLICT_MESSAGE };
   }
   return { ok: true };
 }
