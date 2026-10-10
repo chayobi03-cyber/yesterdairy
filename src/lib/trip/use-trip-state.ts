@@ -2,16 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { editDay, updateProgress, addPlace, deletePhoto, setDayStart, addComment, deleteComment, type Result } from "@/app/(app)/trips/actions";
+import { editDay, updateProgress, addPlace, deletePhoto, setDayStart, addComment, deleteComment, setPlaceLocation, type Result } from "@/app/(app)/trips/actions";
 import { checkCommentBody, MAX_COMMENTS_PER_TRIP } from "./comments";
 import { uploadTripPhoto } from "./photo-upload";
 import { MAX_FILES_PER_PICK, canAddPhotos } from "./photos";
 import { uid } from "./engine";
 import { useLeaveGuard } from "./use-leave-guard";
-import type { NewPlaceInput } from "./day-ops";
+import type { Coord, NewPlaceInput } from "./day-ops";
 import type { ProgressPatch } from "./progress";
 import {
-  applyDayStart, applyNewPlace, applyOp, applyProgress, snapshotSignature,
+  applyDayStart, applyNewPlace, applyOp, applyPlaceCoord, applyProgress, snapshotSignature,
   type DayOpOrReset, type TripSnapshot,
 } from "./view-model";
 
@@ -110,6 +110,17 @@ export function useTripState(initial: TripSnapshot, viewer: { id: string; name: 
       return mutate(
         (s) => applyDayStart(s, day, start),
         () => setDayStart(tripId, day, start),
+      );
+    },
+    [mutate],
+  );
+
+  const changePlaceCoord = useCallback(
+    (placeId: string, coord: Coord | null) => {
+      const tripId = latest.current.tripId;
+      return mutate(
+        (s) => applyPlaceCoord(s, placeId, coord),
+        () => setPlaceLocation(tripId, placeId, coord),
       );
     },
     [mutate],
@@ -226,5 +237,5 @@ export function useTripState(initial: TripSnapshot, viewer: { id: string; name: 
 
   const clearError = useCallback(() => setError(null), []);
 
-  return { snap, pending, uploading, error, clearError, edit, changeDayStart, patchProgress, createPlace, addPhotos, removePhoto, postComment, removeComment };
+  return { snap, pending, uploading, error, clearError, edit, changeDayStart, changePlaceCoord, patchProgress, createPlace, addPhotos, removePhoto, postComment, removeComment };
 }

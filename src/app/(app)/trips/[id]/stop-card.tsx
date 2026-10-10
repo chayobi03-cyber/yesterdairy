@@ -26,6 +26,7 @@ export type StopCardProps = {
   onQuickDone: (id: string) => void;
   onPatch: (id: string, patch: ProgressPatch) => void;
   onEdit: (op: DayOp, confirmMessage?: string) => void;
+  onPickLocation: (placeId: string) => void;
   placeOptions: { id: string; name: string }[];
   comments: TripComment[];
   viewerId: string;
@@ -129,6 +130,7 @@ export function StopCard(p: StopCardProps) {
               />
             </label>
             {row.item.at && <Tool label="시각 해제" aria={`${title} 고정 시각 해제`} onClick={() => p.onEdit({ type: "setAt", itemId: row.id, at: null })} />}
+            {place && <Tool label={hasCoord(place) ? "📍 위치 수정" : "📍 위치 지정"} aria={`${title} 지도 위치 ${hasCoord(place) ? "수정" : "지정"}`} onClick={() => p.onPickLocation(place.id)} />}
             {!mandatory && <Tool label="삭제" danger onClick={() => p.onEdit({ type: "remove", itemId: row.id }, "이 일정을 삭제할까요?")} />}
           </div>
         )}
@@ -214,7 +216,7 @@ function Tool({ label, aria, onClick, disabled, danger }: { label: string; aria?
   );
 }
 
-function StopDetail({ row, progress, onPatch, photos, canDeletePhoto, onAddPhotos, onRemovePhoto, comments, viewerId, isCreator, onPostComment, onRemoveComment }: StopCardProps) {
+function StopDetail({ row, onPickLocation, progress, onPatch, photos, canDeletePhoto, onAddPhotos, onRemovePhoto, comments, viewerId, isCreator, onPostComment, onRemoveComment }: StopCardProps) {
   const place = row.place;
   const cost = useSyncedField(progress?.cost == null ? "" : String(progress.cost));
   const review = useSyncedField(progress?.review ?? "");
@@ -242,6 +244,14 @@ function StopDetail({ row, progress, onPatch, photos, canDeletePhoto, onAddPhoto
         </div>
       )}
       {place?.approx && <p className="text-xs text-neutral-400">※ 지도 좌표는 근사치예요. 길찾기 전에 위치를 확인하세요.</p>}
+      {place && (
+        <div className="flex items-center gap-2 text-xs text-neutral-500">
+          {!hasCoord(place) && <span>지도에 표시되지 않는 장소예요.</span>}
+          <button type="button" onClick={() => onPickLocation(place.id)} className="min-h-9 rounded-lg border border-line px-2.5">
+            {hasCoord(place) ? "📍 지도 위치 수정" : "📍 지도에서 위치 지정"}
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2" role="group" aria-label="진행 상태">
         {(Object.keys(STATUS_LABEL) as ProgressStatus[]).map((s) => (

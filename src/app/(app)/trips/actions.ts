@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/get-current-user";
 import { loadTrip } from "@/lib/trip/data";
 import { CONFLICT_MESSAGE, MAX_CAS_ATTEMPTS, nextVersion } from "@/lib/trip/cas";
-import { applyDayOp, buildPlace, MAX_PLACES, type DayOp, type NewPlaceInput } from "@/lib/trip/day-ops";
+import { applyDayOp, buildPlace, MAX_PLACES, setPlaceCoord, type Coord, type DayOp, type NewPlaceInput } from "@/lib/trip/day-ops";
 import { validAt, validateTrip } from "@/lib/trip/engine";
 import { applyProgressPatch, EMPTY_PROGRESS, type ProgressPatch, type ProgressState } from "@/lib/trip/progress";
 import { checkCommentBody, MAX_COMMENTS_PER_TRIP } from "@/lib/trip/comments";
@@ -328,6 +328,38 @@ export async function setDayStart(tripId: string, day: number, start: string): P
     const { data: updated, error } = await supabase
       .from("trips")
       .update({ def: next, updated_at: nextVersion(row.updated_at, Date.now()) })
+      .eq("id", tripId)
+      .eq("updated_at", row.updated_at)
+      .select("id");
+    if (error) return { ok: false, error: error.message };
+    if (updated?.length) return { ok: true };
+    if (attempt === MAX_CAS_ATTEMPTS - 1) return { ok: false, error: CONFLICT_MESSAGE };
+  }
+  return { ok: true };
+}
+
+
+/* ---------- 장소 지도 위치 ---------- */
+
+// 장소의 좌표를 정하거나(지도에서 눌러 지정) 지운다. setDayStart와 같은 방식의 낙관적 잠금.
+export async function setPlaceLocation(tripId: string, placeId: string, coord: Coord | null): Promise<Result> {
+  const c = await ctx();
+  if (!c) return NOT_SIGNED_IN;
+  if (!ID_RE.test(placeId)) return { ok: false, error: "잘못된 id예요." };
+  const { supabase } = c;
+
+  for (let attempt = 0; attempt < MAX_CAS_ATTEMPTS; attempt++) {
+    const { data: row, error: readError } = await supabase.from("trips").select("def, updated_at").eq("id", tripId).maybeSingle();
+    if (readError) return { ok: false, error: readError.message };
+    if (!row) return { ok: false, error: "여행을 찾을 수 없어요." };
+
+    const def = row.def as TripDef;
+    const r = setPlaceCoord(def.places, placeId, coord);
+    if (!r.ok) return r;
+
+    const { data: updated, error } = await supabase
+      .from("trips")
+      .update({ def: { ...def, places: r.places }, updated_at: nextVersion(row.updated_at, Date.now()) })
       .eq("id", tripId)
       .eq("updated_at", row.updated_at)
       .select("id");

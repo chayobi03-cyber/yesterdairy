@@ -10,7 +10,7 @@ import type { DayOp } from "@/lib/trip/day-ops";
 import { useDragReorder } from "@/lib/trip/use-drag-reorder";
 import { useTripState } from "@/lib/trip/use-trip-state";
 import {
-  buildRows, candidatePins, currentStopId, dayLabel, daySummary, dayStats, excludedMandatory, nextStopId, routeStops, totalCost,
+  buildRows, candidatePins, currentStopId, dayLabel, daySummary, dayStats, excludedMandatory, nextStopId, routeStops, totalCost, unmappedStops,
   type TripSnapshot,
 } from "@/lib/trip/view-model";
 import { DeleteTripButton } from "./delete-trip-button";
@@ -33,7 +33,7 @@ const mini = (active = false) =>
   `min-h-9 shrink-0 rounded-full border px-3 text-xs font-medium ${active ? "border-accent-400 bg-accent-400 text-white" : "border-line bg-card text-neutral-600"}`;
 
 export function TripView({ initial, isCreator, userId, userName, initialPlan, initialDay }: Props) {
-  const { snap, pending, uploading, error, clearError, edit, changeDayStart, patchProgress, createPlace, addPhotos, removePhoto, postComment, removeComment } = useTripState(initial, { id: userId, name: userName });
+  const { snap, pending, uploading, error, clearError, edit, changeDayStart, changePlaceCoord, patchProgress, createPlace, addPhotos, removePhoto, postComment, removeComment } = useTripState(initial, { id: userId, name: userName });
   const def = snap.def;
   const planIds = Object.keys(def.plans);
 
@@ -46,6 +46,10 @@ export function TripView({ initial, isCreator, userId, userName, initialPlan, in
   const [legendFilter, setLegendFilter] = useState<string | null>(null);
   const [focusNonce, setFocusNonce] = useState(0);
   const [fitNonce, setFitNonce] = useState(0);
+  // 위치 지정 모드: 지도를 눌러 장소의 좌표를 정한다
+  const [picking, setPicking] = useState<{ placeId: string; name: string } | null>(null);
+  const [pickPoint, setPickPoint] = useState<[number, number] | null>(null);
+  const [pickMsg, setPickMsg] = useState<string | null>(null);
   const [scrollReq, setScrollReq] = useState<{ id: string; n: number } | null>(null);
 
   const rows = useMemo(() => buildRows(snap, plan, day), [snap, plan, day]);
@@ -121,6 +125,42 @@ export function TripView({ initial, isCreator, userId, userName, initialPlan, in
       setScrollReq((r) => ({ id: next, n: (r?.n ?? 0) + 1 }));
     }
   };
+  const startPick = (placeId: string) => {
+    const place = def.places.find((p) => p.id === placeId);
+    if (!place) return;
+    setPicking({ placeId, name: place.name });
+    setPickPoint(hasCoord(place) ? [place.lat, place.lon] : null);
+    setPickMsg(null);
+    setMapOpen(true);
+    window.scrollTo?.({ top: 0, behavior: "smooth" });
+  };
+  const cancelPick = () => {
+    setPicking(null);
+    setPickPoint(null);
+    setPickMsg(null);
+  };
+  const savePick = () => {
+    if (!picking || !pickPoint) return;
+    if (changePlaceCoord(picking.placeId, { lat: pickPoint[0], lon: pickPoint[1] })) {
+      cancelPick();
+      setFitNonce((n) => n + 1);
+    }
+  };
+  const useMyLocation = () => {
+    if (!navigator.geolocation) {
+      setPickMsg("이 기기에서는 현재 위치를 쓸 수 없어요. 지도를 직접 눌러주세요.");
+      return;
+    }
+    setPickMsg("현재 위치를 찾는 중…");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setPickPoint([pos.coords.latitude, pos.coords.longitude]);
+        setPickMsg(null);
+      },
+      () => setPickMsg("현재 위치를 가져오지 못했어요. 위치 권한을 확인하거나 지도를 직접 눌러주세요."),
+      { enableHighAccuracy: true, timeout: 10_000 },
+    );
+  };
   const onEdit = (op: DayOp, confirmMessage?: string) => {
     if (confirmMessage && !window.confirm(confirmMessage)) return;
     edit(plan, day, op);
@@ -129,7 +169,8 @@ export function TripView({ initial, isCreator, userId, userName, initialPlan, in
   const placeOptions = useMemo(() => def.places.map((p) => ({ id: p.id, name: p.name })), [def.places]);
   const dayStart = def.days.find((d) => d.n === day)?.start ?? "09:00";
   const cost = totalCost(snap);
-  const hasMap = routePins.length > 0 || showAll;
+  const hasMap = routePins.length > 0 || showAll || !!picking;
+  const unmapped = useMemo(() => unmappedStops(rows), [rows]);
 
   return (
     <div className="flex flex-col gap-3 pt-2">
@@ -181,8 +222,22 @@ export function TripView({ initial, isCreator, userId, userName, initialPlan, in
           <button type="button" className={mini()} aria-expanded={mapOpen} aria-label={mapOpen ? "지도 접기" : "지도 펼치기"} onClick={() => setMapOpen((v) => !v)}>{mapOpen ? "접기" : "펼치기"}</button>
         </div>
 
+        {picking && (
+          <div role="region" aria-label="위치 지정" className="flex flex-col gap-1.5 rounded-2xl border border-accent-300 bg-accent-50 px-3 py-2">
+            <p className="text-sm font-medium">📍 「{picking.name}」 위치를 지도에서 눌러 정하세요</p>
+            <p className="text-xs text-neutral-500" aria-live="polite">
+              {pickMsg ?? (pickPoint ? "핀을 옮기려면 지도를 다시 누르세요. 마음에 들면 「여기로 저장」을 눌러주세요." : "지도를 확대한 뒤 정확한 위치를 눌러주세요. 현장이라면 「내 위치」도 쓸 수 있어요.")}
+            </p>
+            <div className="flex gap-1.5">
+              <button type="button" onClick={useMyLocation} className="min-h-9 rounded-xl border border-line bg-card px-3 text-xs">내 위치</button>
+              <button type="button" onClick={cancelPick} className="min-h-9 rounded-xl border border-line bg-card px-3 text-xs text-neutral-500">취소</button>
+              <button type="button" disabled={!pickPoint} onClick={savePick} className="min-h-9 flex-1 rounded-xl bg-accent-400 px-3 text-xs font-medium text-white disabled:opacity-40">여기로 저장</button>
+            </div>
+          </div>
+        )}
+
         <div className={mapOpen ? "" : "hidden"}>
-          <div className="h-40 overflow-hidden rounded-2xl border border-line bg-neutral-100">
+          <div className={`${picking ? "h-64" : "h-40"} overflow-hidden rounded-2xl border border-line bg-neutral-100`}>
             {hasMap ? (
               <TripMap
                 stops={mapStops}
@@ -194,6 +249,12 @@ export function TripView({ initial, isCreator, userId, userName, initialPlan, in
                 visible={mapOpen}
                 onSelect={selectFromMap}
                 onAdd={(placeId) => edit(plan, day, { type: "add", placeId, id: uid("it") })}
+                picking={!!picking}
+                pickPoint={pickPoint}
+                onPickPoint={(lat, lon) => {
+                  setPickPoint([lat, lon]);
+                  setPickMsg(null);
+                }}
               />
             ) : (
               <div className="flex h-full items-center justify-center px-4 text-center text-xs text-neutral-400">
@@ -257,6 +318,17 @@ export function TripView({ initial, isCreator, userId, userName, initialPlan, in
       )}
       {cost > 0 && <p className="-mt-1 text-xs text-neutral-400">누적 지출 기록 {cost.toLocaleString("ko-KR")}원</p>}
 
+      {unmapped.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 text-xs text-neutral-500" role="group" aria-label="지도에 없는 장소">
+          <span>지도에 없는 장소</span>
+          {unmapped.map((u) => (
+            <button key={u.placeId} type="button" onClick={() => startPick(u.placeId)} aria-label={`${u.name} 위치 지정`} className="min-h-8 max-w-full truncate rounded-full border border-line bg-card px-2.5">
+              📍 {u.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {editMode && (
         <label className="flex items-center justify-between gap-2 rounded-2xl border border-line bg-card px-3 py-2 text-sm">
           <span>{dayLabel(snap, day)} 출발(시작) 시각 <span className="block text-xs text-neutral-400">모든 대안에 같은 시각이 적용돼요</span></span>
@@ -303,6 +375,7 @@ export function TripView({ initial, isCreator, userId, userName, initialPlan, in
                   onQuickDone={quickDone}
                   onPatch={patchProgress}
                   onEdit={onEdit}
+                  onPickLocation={startPick}
                   placeOptions={placeOptions}
                   comments={snap.comments.filter((c) => c.itemId === r.id)}
                   viewerId={userId}

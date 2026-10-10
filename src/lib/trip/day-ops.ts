@@ -170,3 +170,24 @@ export function buildPlace(input: NewPlaceInput, id: string = uid("u")): { ok: t
   };
   return { ok: true, place };
 }
+
+export type Coord = { lat: number; lon: number };
+
+// 장소 하나의 지도 위치를 바꾼다 (coord=null이면 위치 지우기). 직접 정한 위치이므로 "근사" 표시는 뗀다.
+// 소수 5자리(약 1m)로 반올림해 저장한다.
+export function setPlaceCoord(places: Place[], placeId: string, coord: Coord | null): { ok: true; places: Place[] } | { ok: false; error: string } {
+  const idx = places.findIndex((pl) => pl.id === placeId);
+  if (idx < 0) return { ok: false, error: "없는 장소예요." };
+  const next = structuredClone(places);
+  const target = next[idx];
+  delete target.approx;
+  if (coord === null) {
+    delete target.lat;
+    delete target.lon;
+    return { ok: true, places: next };
+  }
+  if (!validCoord(coord.lat, coord.lon)) return { ok: false, error: "좌표가 올바르지 않아요 (위도 -90~90, 경도 -180~180)." };
+  target.lat = Math.round(coord.lat * 1e5) / 1e5;
+  target.lon = Math.round(coord.lon * 1e5) / 1e5;
+  return { ok: true, places: next };
+}

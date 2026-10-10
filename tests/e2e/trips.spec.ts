@@ -249,6 +249,29 @@ test("family trip: map + ordered stops on one page, instant edits, shared with f
     await expect(page.getByText("저장 중…")).toHaveCount(0, { timeout: 45_000 });
   });
 
+  await step("places without coordinates can be pinned by tapping the map", TRIP_URL, async () => {
+    // 숙소 체크인은 좌표가 없어 지도에 없다 -> "지도에 없는 장소"에서 위치 지정 모드로
+    await expect(pins(page)).toHaveCount(7);
+    await page.getByRole("button", { name: "숙소 체크인 위치 지정" }).click();
+    const picker = page.getByRole("region", { name: "위치 지정" });
+    await expect(picker).toBeVisible();
+    await expect(picker.getByRole("button", { name: "여기로 저장" })).toBeDisabled();
+    // 핀 위를 누르면 핀 선택이 되어 위치가 정해지지 않으므로, 빈 곳을 찾을 때까지 몇 군데를 눌러본다
+    const map = page.getByRole("region", { name: "여행 지도" });
+    for (const position of [{ x: 60, y: 200 }, { x: 200, y: 230 }, { x: 330, y: 200 }, { x: 120, y: 150 }]) {
+      await map.click({ position });
+      if (await picker.getByRole("button", { name: "여기로 저장" }).isEnabled()) break;
+    }
+    await expect(picker.getByRole("button", { name: "여기로 저장" })).toBeEnabled();
+    await picker.getByRole("button", { name: "여기로 저장" }).click();
+    // 낙관적 반영: 모드가 끝나고 숙소 핀이 바로 생긴다
+    await expect(picker).toHaveCount(0);
+    await expect(pins(page)).toHaveCount(8);
+    await expect(page.getByTitle(/\. 숙소 체크인$/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "숙소 체크인 위치 지정" })).toHaveCount(0);
+    await expect(page.getByText("저장 중…")).toHaveCount(0, { timeout: 45_000 });
+  });
+
   await step("phone width: no horizontal overflow", TRIP_URL, async () => {
     await page.setViewportSize({ width: 390, height: 844 });
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -292,6 +315,8 @@ test("family trip: map + ordered stops on one page, instant edits, shared with f
       await expect(comments2.getByTestId("comment-author").first()).not.toBeEmpty();
       await expect(detail2.getByRole("button", { name: /의 댓글 삭제/ })).toHaveCount(0);
       await expect(detail2.getByRole("button", { name: "📍 도착" })).toHaveAttribute("aria-pressed", "true");
+      // 첫 번째 구성원이 지도에서 정한 숙소 위치(핀)도 보인다
+      await expect(page2.getByTitle(/\. 숙소 체크인$/)).toBeVisible();
       // 첫 번째 구성원이 바꾼 출발 시각·체류시간이 두 번째 구성원 화면에도 반영돼 있다
       await expect(stop(page2, "d1-lunch")).toContainText("10:00–11:15");
       // 소감·사진도 가족에게 보인다 (테이블 RLS + 스토리지 RLS)
