@@ -8,10 +8,10 @@ const PLAN = "balanced";
 const prog = (id: string, over: Partial<ProgressRow> = {}): ProgressRow => ({
   item_id: id, status: null, checks: {}, memo: "", cost: null, review: "", rating: null, updated_at: "", ...over,
 });
-const photo = (id: string, itemId: string | null): TripPhoto => ({ id, itemId, createdBy: "u1", createdAt: "", url: "u", thumbUrl: "t" });
+const photo = (id: string, itemId: string | null): TripPhoto => ({ id, itemId, createdBy: "u1", authorName: "나", createdAt: "", url: "u", thumbUrl: "t" });
 const snap = (progress: ProgressRow[] = [], photos: TripPhoto[] = []): TripSnapshot => ({
   tripId: "t1", title: "전주 가족 1박 2일", startDate: null, def: structuredClone(jeonjuTemplate), overrides: {},
-  progress: Object.fromEntries(progress.map((p) => [p.item_id, p])), photos,
+  progress: Object.fromEntries(progress.map((p) => [p.item_id, p])), photos, comments: [],
 });
 
 describe("fmtWon", () => {

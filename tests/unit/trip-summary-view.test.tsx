@@ -10,7 +10,7 @@ const h = vi.hoisted(() => ({ refresh: vi.fn(), updateProgress: vi.fn(), deleteP
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: h.refresh, push: vi.fn() }) }));
 vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));
 vi.mock("@/app/(app)/trips/actions", () => ({
-  editDay: vi.fn(), addPlace: vi.fn(), registerPhoto: vi.fn(), deleteTrip: vi.fn(),
+  editDay: vi.fn(), addPlace: vi.fn(), addComment: vi.fn(), deleteComment: vi.fn(), setDayStart: vi.fn(), registerPhoto: vi.fn(), deleteTrip: vi.fn(),
   updateProgress: h.updateProgress, deletePhoto: h.deletePhoto,
 }));
 vi.mock("@/lib/trip/photo-upload", () => ({ uploadTripPhoto: h.uploadTripPhoto }));
@@ -25,10 +25,11 @@ const snapshot = (over: Partial<TripSnapshot> = {}): TripSnapshot => ({
     "d1-lunch": row("d1-lunch", { status: "done", cost: 45000, rating: 5, review: "비빔밥이 정말 맛있었어요" }),
     "d1-jeondong": row("d1-jeondong", { status: "arrived", rating: 4 }),
   },
-  photos: [{ id: "p1", itemId: "d1-lunch", createdBy: "u1", createdAt: "", url: "https://x/p1.jpg", thumbUrl: "https://x/p1_t.jpg" }],
+  comments: [{ id: "c1", itemId: "d1-lunch", body: "아이가 잘 먹었어요", createdBy: "u2", authorName: "엄마", createdAt: "2026-10-10T03:30:00Z" }],
+  photos: [{ id: "p1", itemId: "d1-lunch", createdBy: "u1", authorName: "나", createdAt: "", url: "https://x/p1.jpg", thumbUrl: "https://x/p1_t.jpg" }],
   ...over,
 });
-const renderView = (s = snapshot(), isCreator = false) => render(<SummaryView initial={s} plan="balanced" isCreator={isCreator} userId="u1" />);
+const renderView = (s = snapshot(), isCreator = false) => render(<SummaryView initial={s} plan="balanced" isCreator={isCreator} userId="u1" userName="나" />);
 
 beforeEach(() => {
   h.refresh.mockReset();
@@ -52,6 +53,10 @@ describe("여행 요약 화면", () => {
     const day1 = screen.getByRole("region", { name: "1일차 기록" });
     expect(day1.textContent).toContain("비빔밥이 정말 맛있었어요");
     expect(within(day1).getByRole("img", { name: "전주비빔밥 점심 사진 1" })).toBeTruthy();
+    // 댓글은 작성자 이름과 한국 시간과 함께 모인다
+    expect(within(day1).getByTestId("comment-author").textContent).toBe("엄마");
+    expect(day1.textContent).toContain("아이가 잘 먹었어요");
+    expect(day1.textContent).toContain("10/10 12:30");
     expect(screen.getByRole("region", { name: "2일차 기록" })).toBeTruthy();
   });
 

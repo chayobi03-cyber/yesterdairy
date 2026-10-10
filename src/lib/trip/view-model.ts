@@ -3,7 +3,7 @@
 import { applyDayOp, type DayOp, type NewPlaceInput, buildPlace } from "./day-ops";
 import { currentIndex, hasCoord, mandatoryStatus, timeline, validAt, type Row } from "./engine";
 import { applyProgressPatch, EMPTY_PROGRESS, type ProgressPatch } from "./progress";
-import type { Place, PlanItem, ProgressRow, TripDef, TripPhoto } from "./types";
+import type { Place, PlanItem, ProgressRow, TripComment, TripDef, TripPhoto } from "./types";
 
 export type TripSnapshot = {
   tripId: string;
@@ -16,6 +16,8 @@ export type TripSnapshot = {
   progress: Record<string, ProgressRow>;
   // 업로드 순서의 사진 목록 (서명 URL 포함)
   photos: TripPhoto[];
+  // 장소별 댓글 (오래된 순)
+  comments: TripComment[];
 };
 
 export const dayKey = (plan: string, day: number) => `${plan}:${day}`;
@@ -164,7 +166,7 @@ export function dayLabel(s: TripSnapshot, n: number): string {
 // 서버가 보낸 새 스냅샷을 받아들일지 판단하는 지문 (내용이 같으면 화면을 건드리지 않는다)
 export function snapshotSignature(s: TripSnapshot): string {
   // 사진은 서명 URL이 매번 달라지므로 id만 비교한다 (그렇지 않으면 폴링 때마다 화면이 갈아끼워진다)
-  return JSON.stringify([s.title, s.startDate, s.def, s.overrides, s.progress, s.photos.map((p) => p.id)]);
+  return JSON.stringify([s.title, s.startDate, s.def, s.overrides, s.progress, s.photos.map((p) => p.id), s.comments.map((c) => c.id)]);
 }
 
 export type MapStop = {

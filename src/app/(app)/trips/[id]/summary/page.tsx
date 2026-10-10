@@ -18,5 +18,7 @@ export default async function TripSummaryPage({ params, searchParams }: { params
   const planIds = Object.keys(trip.def.plans);
   const plan = sp.plan && trip.def.plans[sp.plan] ? sp.plan : trip.def.defaultPlan && trip.def.plans[trip.def.defaultPlan] ? trip.def.defaultPlan : planIds[0];
 
-  return <SummaryView initial={snapshot} plan={plan} isCreator={trip.created_by === user.id} userId={user.id} />;
+  const supabase = await createClient();
+  const { data: me } = await supabase.from("profiles").select("name").eq("id", user.id).maybeSingle();
+  return <SummaryView initial={snapshot} plan={plan} isCreator={trip.created_by === user.id} userId={user.id} userName={me?.name ?? "나"} />;
 }
