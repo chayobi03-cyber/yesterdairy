@@ -27,6 +27,8 @@ export type StopCardProps = {
   onPatch: (id: string, patch: ProgressPatch) => void;
   onEdit: (op: DayOp, confirmMessage?: string) => void;
   onPickLocation: (placeId: string) => void;
+  // 한 번에 원하는 순서로 옮기기 (to = 옮긴 뒤 위치, 0부터)
+  onMoveTo: (from: number, to: number) => void;
   placeOptions: { id: string; name: string }[];
   comments: TripComment[];
   viewerId: string;
@@ -144,7 +146,7 @@ export function StopCard(p: StopCardProps) {
 }
 
 // 편집 모드에서 한 블록(일정 항목)을 바로 고치는 입력칸: 체류시간(분), 이름(장소 없는 일정), 장소 바꾸기
-function EditFields({ row, title, mandatory, placeOptions, onEdit }: StopCardProps & { title: string }) {
+function EditFields({ row, title, mandatory, placeOptions, onEdit, index, count, onMoveTo }: StopCardProps & { title: string }) {
   const dur = useSyncedField(String(row.dur));
   const name = useSyncedField(row.item.rest ?? "");
   const isRest = row.item.rest != null;
@@ -168,6 +170,17 @@ function EditFields({ row, title, mandatory, placeOptions, onEdit }: StopCardPro
           className={`${input} w-16`}
         />
         분
+      </label>
+      <label className="flex items-center gap-1">
+        순서
+        <select
+          aria-label={`${title} 순서 바꾸기`}
+          value={index}
+          onChange={(e) => Number(e.target.value) !== index && onMoveTo(index, Number(e.target.value))}
+          className={`${input} w-20`}
+        >
+          {Array.from({ length: count }, (_, i) => <option key={i} value={i}>{i + 1}번째{i === index ? " (현재)" : ""}</option>)}
+        </select>
       </label>
       {isRest ? (
         <label className="flex min-w-0 flex-1 items-center gap-1">

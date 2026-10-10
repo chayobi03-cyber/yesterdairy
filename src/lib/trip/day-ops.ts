@@ -19,8 +19,9 @@ export type DayOp =
   // 장소 없는 일정(이동·휴식 등)의 이름 바꾸기
   | { type: "rename"; itemId: string; title: string }
   // id: 화면이 먼저 반영(낙관적 업데이트)할 때 서버와 같은 항목 id를 쓰도록 호출자가 정한다
-  | { type: "add"; placeId: string; id?: string }
-  | { type: "addRest"; title: string; id?: string }
+  // index: 넣을 위치(0=맨 앞). 없으면 맨 끝. 범위를 벗어나면 맨 끝으로 맞춘다 (동시 편집으로 길이가 달라져도 실패하지 않게)
+  | { type: "add"; placeId: string; id?: string; index?: number }
+  | { type: "addRest"; title: string; id?: string; index?: number }
   | { type: "remove"; itemId: string };
 
 export type OpResult = { ok: true; items: PlanItem[] } | { ok: false; error: string };
@@ -33,6 +34,11 @@ function newItemId(requested: string | undefined, existing: PlanItem[]): { ok: t
   if (requested == null) return { ok: true, id: uid("it") };
   if (!ID_RE.test(requested) || existing.some((i) => i.id === requested)) return { ok: false, error: "잘못된 항목 id예요." };
   return { ok: true, id: requested };
+}
+
+function insertAt(items: PlanItem[], item: PlanItem, index: number | undefined): void {
+  const at = index == null || !Number.isInteger(index) ? items.length : Math.min(Math.max(index, 0), items.length);
+  items.splice(at, 0, item);
 }
 
 export function applyDayOp(
@@ -116,7 +122,7 @@ export function applyDayOp(
       if (items.length >= MAX_ITEMS_PER_DAY) return { ok: false, error: "하루에 넣을 수 있는 항목이 가득 찼어요." };
       const nid = newItemId(op.id, items);
       if (!nid.ok) return nid;
-      items.push({ id: nid.id, p: op.placeId });
+      insertAt(items, { id: nid.id, p: op.placeId }, op.index);
       return { ok: true, items };
     }
     case "addRest": {
@@ -125,7 +131,7 @@ export function applyDayOp(
       if (items.length >= MAX_ITEMS_PER_DAY) return { ok: false, error: "하루에 넣을 수 있는 항목이 가득 찼어요." };
       const nid = newItemId(op.id, items);
       if (!nid.ok) return nid;
-      items.push({ id: nid.id, rest: title, dur: 30 });
+      insertAt(items, { id: nid.id, rest: title, dur: 30 }, op.index);
       return { ok: true, items };
     }
     case "remove": {

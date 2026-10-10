@@ -138,17 +138,18 @@ export function useTripState(initial: TripSnapshot, viewer: { id: string; name: 
   );
 
   const createPlace = useCallback(
-    (plan: string, day: number, input: NewPlaceInput, addNow: boolean) => {
+    (plan: string, day: number, input: NewPlaceInput, addNow: boolean, opts: { index?: number; itemId?: string } = {}) => {
       const tripId = latest.current.tripId;
       const placeId = uid("u");
-      const itemId = uid("it");
+      const itemId = opts.itemId ?? uid("it");
+      const index = opts.index;
       return mutate(
         (s) => {
           const r = applyNewPlace(s, input, placeId);
           if (!r.ok || !addNow) return r;
-          return applyOp(r.snapshot, plan, day, { type: "add", placeId, id: itemId });
+          return applyOp(r.snapshot, plan, day, { type: "add", placeId, id: itemId, index });
         },
-        () => addPlace(tripId, { ...input, planId: plan, day, addNow, placeId, itemId }),
+        () => addPlace(tripId, { ...input, planId: plan, day, addNow, placeId, itemId, index }),
       );
     },
     [mutate],

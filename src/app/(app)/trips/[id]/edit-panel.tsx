@@ -5,30 +5,43 @@ import type { NewPlaceInput } from "@/lib/trip/day-ops";
 
 type Props = {
   places: { id: string; name: string }[];
-  onAddPlace: (placeId: string) => void;
-  onAddRest: (title: string) => boolean;
-  onCreatePlace: (input: NewPlaceInput, addNow: boolean) => boolean;
+  // 오늘 일정(제외 항목 포함)의 이름 목록과, 새 항목을 넣을 기본 위치(0=맨 앞, rows.length=맨 끝)
+  slots: string[];
+  defaultIndex: number;
+  onAddPlace: (placeId: string, index: number) => void;
+  onAddRest: (title: string, index: number) => boolean;
+  onCreatePlace: (input: NewPlaceInput, addNow: boolean, index: number) => boolean;
   onReset: () => void;
 };
 
 const field = "min-h-10 w-full rounded-xl border border-line px-3 py-2 text-sm text-ink outline-none focus:border-accent-300";
 
 // 편집 모드에서만 보이는 추가/되돌리기 도구
-export function EditPanel({ places, onAddPlace, onAddRest, onCreatePlace, onReset }: Props) {
+export function EditPanel({ places, slots, defaultIndex, onAddPlace, onAddRest, onCreatePlace, onReset }: Props) {
   const [placeId, setPlaceId] = useState(places[0]?.id ?? "");
   const [rest, setRest] = useState("");
   const [creating, setCreating] = useState(false);
+  // 넣을 위치: 사용자가 고르기 전까지는 기본 위치("지금 가야 할 곳" 다음)를 따라간다
+  const [picked, setPicked] = useState<number | null>(null);
+  const index = Math.min(picked ?? defaultIndex, slots.length);
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-2 rounded-2xl border border-line bg-card p-3">
         <h3 className="text-sm font-medium">일정에 추가</h3>
+        <label className="flex items-center gap-2 text-xs text-neutral-500">
+          넣을 위치
+          <select value={index} onChange={(e) => setPicked(Number(e.target.value))} aria-label="넣을 위치" className={field}>
+            <option value={0}>맨 처음</option>
+            {slots.map((name, i) => <option key={i} value={i + 1}>{i + 1}. {name} 다음</option>)}
+          </select>
+        </label>
         {places.length > 0 && (
           <div className="flex gap-2">
             <select value={placeId} onChange={(e) => setPlaceId(e.target.value)} aria-label="추가할 장소" className={field}>
               {places.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
-            <button type="button" aria-label="선택한 장소를 일정에 추가" onClick={() => onAddPlace(placeId)} className="min-h-10 shrink-0 rounded-xl bg-accent-400 px-4 text-sm font-medium text-white">추가</button>
+            <button type="button" aria-label="선택한 장소를 일정에 추가" onClick={() => onAddPlace(placeId, index)} className="min-h-10 shrink-0 rounded-xl bg-accent-400 px-4 text-sm font-medium text-white">추가</button>
           </div>
         )}
         <div className="flex gap-2">
@@ -36,7 +49,7 @@ export function EditPanel({ places, onAddPlace, onAddRest, onCreatePlace, onRese
           <button
             type="button"
             aria-label="장소 없는 일정 추가"
-            onClick={() => onAddRest(rest) && setRest("")}
+            onClick={() => onAddRest(rest, index) && setRest("")}
             className="min-h-10 shrink-0 rounded-xl border border-line px-4 text-sm"
           >
             추가
@@ -55,6 +68,7 @@ export function EditPanel({ places, onAddPlace, onAddRest, onCreatePlace, onRese
             const ok = onCreatePlace(
               { name: g("name"), cat: g("cat"), addr: g("addr"), lat: g("lat"), lon: g("lon"), dur: g("dur"), hours: g("hours"), desc: g("desc"), note: g("note") },
               fd.get("addNow") === "on",
+              index,
             );
             if (ok) setCreating(false);
           }}
