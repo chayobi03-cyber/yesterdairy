@@ -7,6 +7,7 @@ import { checkCommentBody, MAX_COMMENTS_PER_TRIP } from "./comments";
 import { uploadTripPhoto } from "./photo-upload";
 import { MAX_FILES_PER_PICK, canAddPhotos } from "./photos";
 import { uid } from "./engine";
+import { useLeaveGuard } from "./use-leave-guard";
 import type { NewPlaceInput } from "./day-ops";
 import type { ProgressPatch } from "./progress";
 import {
@@ -219,6 +220,9 @@ export function useTripState(initial: TripSnapshot, viewer: { id: string; name: 
     },
     [mutate],
   );
+
+  // 저장이 끝나기 전에 페이지를 떠나면 대기 중인 변경이 사라질 수 있어 한 번 물어본다
+  useLeaveGuard(pending > 0);
 
   const clearError = useCallback(() => setError(null), []);
 
