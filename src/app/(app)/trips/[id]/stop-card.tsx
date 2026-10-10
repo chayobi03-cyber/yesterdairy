@@ -5,7 +5,8 @@ import type { DayOp } from "@/lib/trip/day-ops";
 import type { ProgressPatch } from "@/lib/trip/progress";
 import { useSyncedField } from "@/lib/trip/use-synced-field";
 import type { StopRow } from "@/lib/trip/view-model";
-import type { ProgressRow, ProgressStatus, TripPhoto } from "@/lib/trip/types";
+import type { ProgressRow, ProgressStatus, TripComment, TripPhoto } from "@/lib/trip/types";
+import { CommentThread } from "./comment-thread";
 import { PhotoStrip } from "./photo-strip";
 
 const STATUS_LABEL: Record<ProgressStatus, string> = { arrived: "📍 도착", done: "✅ 완료", skipped: "⏭ 건너뜀" };
@@ -26,6 +27,11 @@ export type StopCardProps = {
   onPatch: (id: string, patch: ProgressPatch) => void;
   onEdit: (op: DayOp, confirmMessage?: string) => void;
   placeOptions: { id: string; name: string }[];
+  comments: TripComment[];
+  viewerId: string;
+  isCreator: boolean;
+  onPostComment: (itemId: string, body: string) => boolean;
+  onRemoveComment: (commentId: string) => void;
   photos: TripPhoto[];
   canDeletePhoto: (p: TripPhoto) => boolean;
   onAddPhotos: (itemId: string, files: File[]) => void;
@@ -75,6 +81,7 @@ export function StopCard(p: StopCardProps) {
               {place?.cat ? `${CATS[place.cat] ?? ""} · ` : ""}
               {row.dur}분
               {p.photos.length > 0 && ` · 📷 ${p.photos.length}`}
+              {p.comments.length > 0 && ` · 💬 ${p.comments.length}`}
               {p.progress?.rating ? ` · ${"★".repeat(p.progress.rating)}` : ""}
               {row.included && row.late > 0 && <span className="ml-1 text-red-500">· 예정 {row.item.at}보다 {row.late}분 늦음</span>}
             </span>
@@ -207,9 +214,8 @@ function Tool({ label, aria, onClick, disabled, danger }: { label: string; aria?
   );
 }
 
-function StopDetail({ row, progress, onPatch, photos, canDeletePhoto, onAddPhotos, onRemovePhoto }: StopCardProps) {
+function StopDetail({ row, progress, onPatch, photos, canDeletePhoto, onAddPhotos, onRemovePhoto, comments, viewerId, isCreator, onPostComment, onRemoveComment }: StopCardProps) {
   const place = row.place;
-  const memo = useSyncedField(progress?.memo ?? "");
   const cost = useSyncedField(progress?.cost == null ? "" : String(progress.cost));
   const review = useSyncedField(progress?.review ?? "");
   const status = row.status;
@@ -282,17 +288,16 @@ function StopDetail({ row, progress, onPatch, photos, canDeletePhoto, onAddPhoto
         </div>
       )}
 
-      <label className="text-xs text-neutral-500">
-        메모 (가족 모두에게 보여요)
-        <textarea
-          value={memo.value}
-          maxLength={2000}
-          onChange={(e) => memo.setValue(e.target.value)}
-          onBlur={() => memo.dirty && onPatch(row.id, { memo: memo.commit() })}
-          placeholder="예약번호, 주차 위치, 느낀 점…"
-          className="mt-1 min-h-20 w-full rounded-xl border border-line px-3 py-2 text-sm text-ink outline-none focus:border-accent-300"
-        />
-      </label>
+      <CommentThread
+        title={title}
+        comments={comments}
+        viewerId={viewerId}
+        isCreator={isCreator}
+        onPost={(body) => onPostComment(row.id, body)}
+        onRemove={onRemoveComment}
+        legacyMemo={progress?.memo || undefined}
+        onClearLegacy={() => onPatch(row.id, { memo: "" })}
+      />
       {(status === "arrived" || status === "done") && (
         <section aria-label={`${title} 소감`} className="flex flex-col gap-2 rounded-xl bg-accent-50/60 p-3">
           <h3 className="text-sm font-medium text-neutral-600">다녀온 소감</h3>
@@ -310,6 +315,9 @@ function StopDetail({ row, progress, onPatch, photos, canDeletePhoto, onAddPhoto
               </button>
             ))}
           </div>
+          {progress?.authorName && (progress.review || progress.rating) && (
+            <p className="text-[11px] text-neutral-400">마지막 기록: {progress.authorName}</p>
+          )}
           <label className="text-xs text-neutral-500">
             소감 (가족 모두에게 보여요)
             <textarea

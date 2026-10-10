@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { editDay, updateProgress, addPlace, deletePhoto, setDayStart, type Result } from "@/app/(app)/trips/actions";
+import { editDay, updateProgress, addPlace, deletePhoto, setDayStart, addComment, deleteComment, type Result } from "@/app/(app)/trips/actions";
+import { checkCommentBody, MAX_COMMENTS_PER_TRIP } from "./comments";
 import { uploadTripPhoto } from "./photo-upload";
 import { MAX_FILES_PER_PICK, canAddPhotos } from "./photos";
 import { uid } from "./engine";
@@ -21,7 +22,7 @@ const FOLLOW_UP_SYNC_MS = 1_000;
 // 여행 화면 상태. 탭하면 서버 응답을 기다리지 않고 화면에 먼저 반영(낙관적 업데이트)하고,
 // 저장은 뒤에서 한다. 저장이 실패하면 오류를 알리고 서버 상태로 되돌린다.
 // 가족이 다른 폰에서 바꾼 내용은 주기적으로 받아오되, 내가 저장 중이거나 입력 중이면 건너뛴다.
-export function useTripState(initial: TripSnapshot) {
+export function useTripState(initial: TripSnapshot, viewer: { id: string; name: string }) {
   const router = useRouter();
   const [snap, setSnap] = useState(initial);
   const [seen, setSeen] = useState(initial);
@@ -185,7 +186,41 @@ export function useTripState(initial: TripSnapshot) {
     [mutate],
   );
 
+  // 댓글: 쓰는 즉시 내 이름으로 목록에 보이고, 저장은 뒤에서 한다 (실패하면 사라지고 오류를 알린다)
+  const postComment = useCallback(
+    (itemId: string, raw: string) => {
+      const checked = checkCommentBody(raw);
+      if (!checked.ok) {
+        setError(checked.error);
+        return false;
+      }
+      const cur = latest.current;
+      if (cur.comments.length >= MAX_COMMENTS_PER_TRIP) {
+        setError(`한 여행에는 댓글을 ${MAX_COMMENTS_PER_TRIP}개까지 쓸 수 있어요.`);
+        return false;
+      }
+      const id = crypto.randomUUID();
+      const comment = { id, itemId, body: checked.body, createdBy: viewer.id, authorName: viewer.name, createdAt: new Date().toISOString() };
+      return mutate(
+        (s) => ({ ok: true, snapshot: { ...s, comments: [...s.comments, comment] } }),
+        () => addComment(cur.tripId, { id, itemId, body: checked.body }),
+      );
+    },
+    [mutate, viewer.id, viewer.name],
+  );
+
+  const removeComment = useCallback(
+    (commentId: string) => {
+      const tripId = latest.current.tripId;
+      return mutate(
+        (s) => ({ ok: true, snapshot: { ...s, comments: s.comments.filter((c) => c.id !== commentId) } }),
+        () => deleteComment(tripId, commentId),
+      );
+    },
+    [mutate],
+  );
+
   const clearError = useCallback(() => setError(null), []);
 
-  return { snap, pending, uploading, error, clearError, edit, changeDayStart, patchProgress, createPlace, addPhotos, removePhoto };
+  return { snap, pending, uploading, error, clearError, edit, changeDayStart, patchProgress, createPlace, addPhotos, removePhoto, postComment, removeComment };
 }

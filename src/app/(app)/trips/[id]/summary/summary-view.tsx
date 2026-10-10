@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
+import { formatCommentTime } from "@/lib/trip/comments";
 import { CATS, fmt } from "@/lib/trip/engine";
 import { buildTripSummary, fmtWon } from "@/lib/trip/summary";
 import { TRIP_NOTE_ID, type TripPhoto } from "@/lib/trip/types";
@@ -12,8 +13,8 @@ import { PhotoStrip } from "../photo-strip";
 
 const STATUS: Record<string, string> = { done: "✅ 완료", arrived: "📍 도착", skipped: "⏭ 건너뜀" };
 
-export function SummaryView({ initial, plan, isCreator, userId }: { initial: TripSnapshot; plan: string; isCreator: boolean; userId: string }) {
-  const { snap, pending, uploading, error, clearError, patchProgress, addPhotos, removePhoto } = useTripState(initial);
+export function SummaryView({ initial, plan, isCreator, userId, userName }: { initial: TripSnapshot; plan: string; isCreator: boolean; userId: string; userName: string }) {
+  const { snap, pending, uploading, error, clearError, patchProgress, addPhotos, removePhoto } = useTripState(initial, { id: userId, name: userName });
   const sum = useMemo(() => buildTripSummary(snap, plan), [snap, plan]);
   const note = snap.progress[TRIP_NOTE_ID];
   const review = useSyncedField(note?.review ?? "");
@@ -101,7 +102,7 @@ export function SummaryView({ initial, plan, isCreator, userId }: { initial: Tri
           {d.stops.length === 0 && <p className="text-sm text-neutral-400">이 날은 일정이 없어요.</p>}
           <ol className="flex flex-col gap-2">
             {d.stops.map((s) => {
-              const touched = s.status || s.review || s.rating || s.photos.length;
+              const touched = s.status || s.review || s.rating || s.photos.length || s.comments.length;
               return (
                 <li key={s.id} className={`rounded-2xl border border-line bg-card p-3 print:break-inside-avoid ${touched ? "" : "opacity-60"}`}>
                   <div className="flex items-start justify-between gap-2">
@@ -115,7 +116,18 @@ export function SummaryView({ initial, plan, isCreator, userId }: { initial: Tri
                     {s.rating && <span className="text-amber-400">{"★".repeat(s.rating)}</span>}
                   </p>
                   {s.review && <p className="mt-1 whitespace-pre-wrap text-sm">{s.review}</p>}
-                  {s.memo && <p className="mt-1 whitespace-pre-wrap text-xs text-neutral-500">메모: {s.memo}</p>}
+                  {s.memo && <p className="mt-1 whitespace-pre-wrap text-xs text-neutral-500">이전 메모: {s.memo}</p>}
+                  {s.comments.length > 0 && (
+                    <ul className="mt-1 flex flex-col gap-1" aria-label={`${s.title} 댓글`}>
+                      {s.comments.map((c) => (
+                        <li key={c.id} className="text-xs text-neutral-500">
+                          <b data-testid="comment-author" className="font-semibold text-neutral-600">{c.authorName}</b>
+                          <span className="text-neutral-400"> · {formatCommentTime(c.createdAt)}</span>
+                          <span className="block whitespace-pre-wrap text-sm text-ink">{c.body}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   {s.photos.length > 0 && <PhotoStrip title={s.title} photos={s.photos} canDelete={canDelete} onAdd={(files) => void addPhotos(s.id, files)} onRemove={removePhoto} />}
                 </li>
               );

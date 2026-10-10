@@ -25,15 +25,15 @@ const TripMap = dynamic(() => import("./trip-map"), {
 const NO_CANDIDATES: never[] = [];
 const FALLBACK_CENTER: [number, number] = [37.5665, 126.978];
 
-type Props = { initial: TripSnapshot; isCreator: boolean; userId: string; initialPlan: string; initialDay: number };
+type Props = { initial: TripSnapshot; isCreator: boolean; userId: string; userName: string; initialPlan: string; initialDay: number };
 
 const chip = (active: boolean) =>
   `shrink-0 rounded-full border px-3 py-1.5 text-sm ${active ? "border-accent-400 bg-accent-50 font-medium text-accent-700" : "border-line text-neutral-500"}`;
 const mini = (active = false) =>
   `min-h-9 shrink-0 rounded-full border px-3 text-xs font-medium ${active ? "border-accent-400 bg-accent-400 text-white" : "border-line bg-card text-neutral-600"}`;
 
-export function TripView({ initial, isCreator, userId, initialPlan, initialDay }: Props) {
-  const { snap, pending, uploading, error, clearError, edit, changeDayStart, patchProgress, createPlace, addPhotos, removePhoto } = useTripState(initial);
+export function TripView({ initial, isCreator, userId, userName, initialPlan, initialDay }: Props) {
+  const { snap, pending, uploading, error, clearError, edit, changeDayStart, patchProgress, createPlace, addPhotos, removePhoto, postComment, removeComment } = useTripState(initial, { id: userId, name: userName });
   const def = snap.def;
   const planIds = Object.keys(def.plans);
 
@@ -304,6 +304,11 @@ export function TripView({ initial, isCreator, userId, initialPlan, initialDay }
                   onPatch={patchProgress}
                   onEdit={onEdit}
                   placeOptions={placeOptions}
+                  comments={snap.comments.filter((c) => c.itemId === r.id)}
+                  viewerId={userId}
+                  isCreator={isCreator}
+                  onPostComment={postComment}
+                  onRemoveComment={removeComment}
                   photos={snap.photos.filter((ph) => ph.itemId === r.id)}
                   canDeletePhoto={(ph) => isCreator || ph.createdBy === userId}
                   onAddPhotos={(itemId, files) => void addPhotos(itemId, files)}

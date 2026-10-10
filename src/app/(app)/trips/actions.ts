@@ -8,6 +8,7 @@ import { CONFLICT_MESSAGE, MAX_CAS_ATTEMPTS, nextVersion } from "@/lib/trip/cas"
 import { applyDayOp, buildPlace, MAX_PLACES, type DayOp, type NewPlaceInput } from "@/lib/trip/day-ops";
 import { validAt, validateTrip } from "@/lib/trip/engine";
 import { applyProgressPatch, EMPTY_PROGRESS, type ProgressPatch, type ProgressState } from "@/lib/trip/progress";
+import { checkCommentBody, MAX_COMMENTS_PER_TRIP } from "@/lib/trip/comments";
 import { PHOTO_ID_RE, MAX_PHOTO_BYTES, canAddPhotos, photoPaths } from "@/lib/trip/photos";
 import { jeonjuTemplate } from "@/lib/trip/templates/jeonju";
 import type { PlanItem, TripDef } from "@/lib/trip/types";
@@ -334,5 +335,37 @@ export async function setDayStart(tripId: string, day: number, start: string): P
     if (updated?.length) return { ok: true };
     if (attempt === MAX_CAS_ATTEMPTS - 1) return { ok: false, error: CONFLICT_MESSAGE };
   }
+  return { ok: true };
+}
+
+
+/* ---------- 장소별 댓글 ---------- */
+
+// 메모 대신 작성자와 시각이 남는 댓글. id는 화면이 먼저 반영(낙관적 업데이트)할 때와 같은 값을 쓴다.
+export async function addComment(tripId: string, input: { id: string; itemId: string; body: string }): Promise<Result> {
+  const c = await ctx();
+  if (!c) return NOT_SIGNED_IN;
+  if (!PHOTO_ID_RE.test(input.id) || !PHOTO_ID_RE.test(tripId)) return { ok: false, error: "잘못된 댓글이에요." };
+  if (!ID_RE.test(input.itemId)) return { ok: false, error: "잘못된 항목이에요." };
+  const checked = checkCommentBody(input.body);
+  if (!checked.ok) return checked;
+  const { supabase, user } = c;
+
+  const { count } = await supabase.from("trip_comments").select("id", { count: "exact", head: true }).eq("trip_id", tripId);
+  if ((count ?? 0) >= MAX_COMMENTS_PER_TRIP) return { ok: false, error: `한 여행에는 댓글을 ${MAX_COMMENTS_PER_TRIP}개까지 쓸 수 있어요.` };
+
+  const { error } = await supabase.from("trip_comments").insert({ id: input.id, trip_id: tripId, item_id: input.itemId, body: checked.body, created_by: user.id });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function deleteComment(tripId: string, commentId: string): Promise<Result> {
+  const c = await ctx();
+  if (!c) return NOT_SIGNED_IN;
+  if (!PHOTO_ID_RE.test(commentId) || !PHOTO_ID_RE.test(tripId)) return { ok: false, error: "잘못된 댓글이에요." };
+  // 삭제 정책이 "쓴 사람 또는 여행을 만든 사람"만 허용한다
+  const { data, error } = await c.supabase.from("trip_comments").delete().eq("id", commentId).eq("trip_id", tripId).select("id");
+  if (error) return { ok: false, error: error.message };
+  if (!data?.length) return { ok: false, error: "쓴 사람이나 여행을 만든 사람만 지울 수 있어요." };
   return { ok: true };
 }

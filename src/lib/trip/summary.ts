@@ -2,7 +2,7 @@
 // 같은 입력이면 항상 같은 결과가 나온다 — 한 줄 요약과 배지는 고정된 문장 틀과 임계값 규칙으로만 만든다.
 import { buildRows } from "./view-model";
 import type { TripSnapshot } from "./view-model";
-import { TRIP_NOTE_ID, type ProgressStatus, type TripPhoto } from "./types";
+import { TRIP_NOTE_ID, type ProgressStatus, type TripComment, type TripPhoto } from "./types";
 
 export type SummaryStop = {
   id: string;
@@ -14,7 +14,8 @@ export type SummaryStop = {
   status: ProgressStatus | null;
   rating: number | null;
   review: string;
-  memo: string;
+  memo: string; // 댓글 기능 이전의 공용 메모
+  comments: TripComment[];
   cost: number | null;
   photos: TripPhoto[];
 };
@@ -83,6 +84,7 @@ export function buildTripSummary(s: TripSnapshot, plan: string): TripSummary {
         rating: pr?.rating ?? null,
         review: pr?.review ?? "",
         memo: pr?.memo ?? "",
+        comments: s.comments.filter((c) => c.itemId === r.id),
         cost: pr?.cost ?? null,
         photos: s.photos.filter((p) => p.itemId === r.id),
       });

@@ -14,6 +14,8 @@ const h = vi.hoisted(() => ({
   deletePhoto: vi.fn(),
   uploadTripPhoto: vi.fn(),
   setDayStart: vi.fn(),
+  addComment: vi.fn(),
+  deleteComment: vi.fn(),
 }));
 
 vi.mock("next/dynamic", () => ({
@@ -31,6 +33,8 @@ vi.mock("@/app/(app)/trips/actions", () => ({
   addPlace: h.addPlace,
   deletePhoto: h.deletePhoto,
   setDayStart: h.setDayStart,
+  addComment: h.addComment,
+  deleteComment: h.deleteComment,
   registerPhoto: vi.fn(),
   deleteTrip: vi.fn(),
 }));
@@ -46,11 +50,12 @@ const snapshot = (over: Partial<TripSnapshot> = {}): TripSnapshot => ({
   overrides: {},
   progress: {},
   photos: [],
+  comments: [],
   ...over,
 });
 
 const renderView = (initial = snapshot(), isCreator = false) =>
-  render(<TripView initial={initial} isCreator={isCreator} userId="u1" initialPlan="balanced" initialDay={1} />);
+  render(<TripView initial={initial} isCreator={isCreator} userId="u1" userName="나" initialPlan="balanced" initialDay={1} />);
 
 const stop = (id: string) => screen.getByTestId(`stop-${id}`);
 const orderOfStops = () => screen.getAllByTestId(/^stop-/).map((el) => el.getAttribute("data-testid")!.replace("stop-", ""));
@@ -64,6 +69,8 @@ beforeEach(() => {
   h.addPlace.mockReset().mockResolvedValue({ ok: true });
   h.deletePhoto.mockReset().mockResolvedValue({ ok: true });
   h.setDayStart.mockReset().mockResolvedValue({ ok: true });
+  h.addComment.mockReset().mockResolvedValue({ ok: true });
+  h.deleteComment.mockReset().mockResolvedValue({ ok: true });
   h.uploadTripPhoto.mockReset().mockResolvedValue({ ok: true });
   Element.prototype.scrollIntoView = vi.fn();
   window.confirm = vi.fn(() => true);
@@ -209,17 +216,57 @@ describe("바로 반영 (낙관적 업데이트)", () => {
   });
 });
 
-describe("메모/지출 입력", () => {
-  it("포커스를 잃으면 저장하고, 바뀌지 않았으면 저장하지 않는다", () => {
+describe("댓글/지출 입력", () => {
+  it("댓글을 쓰면 서버 응답 전에 내 이름으로 목록에 보이고 저장하며, 빈 댓글은 보내지 않는다", () => {
     renderView();
-    const memo = within(stop("d1-parking")).getByLabelText(/메모/) as HTMLTextAreaElement;
-    fireEvent.blur(memo);
-    expect(h.updateProgress).not.toHaveBeenCalled();
-    fireEvent.change(memo, { target: { value: "주차 B2" } });
-    fireEvent.blur(memo);
-    expect(h.updateProgress).toHaveBeenCalledWith("trip-1", "d1-parking", { memo: "주차 B2" });
-    fireEvent.blur(memo); // 같은 값을 다시 저장하지 않는다
-    expect(h.updateProgress).toHaveBeenCalledTimes(1);
+    const box = within(stop("d1-parking")).getByLabelText("한옥마을 인근 주차 댓글 쓰기") as HTMLTextAreaElement;
+    const send = within(stop("d1-parking")).getByRole("button", { name: "한옥마을 인근 주차 댓글 등록" }) as HTMLButtonElement;
+    expect(send.disabled).toBe(true); // 비어 있으면 못 보냄
+    fireEvent.change(box, { target: { value: "  주차 B2  " } });
+    fireEvent.click(send);
+    const item = within(stop("d1-parking")).getByRole("list", { name: "한옥마을 인근 주차 댓글 목록" });
+    expect(within(item).getByTestId("comment-author").textContent).toBe("나");
+    expect(item.textContent).toContain("주차 B2");
+    expect(box.value).toBe(""); // 보낸 뒤 입력칸이 비워진다
+    expect(h.addComment).toHaveBeenCalledWith("trip-1", expect.objectContaining({ itemId: "d1-parking", body: "주차 B2" }));
+    expect(stop("d1-parking").textContent).toContain("💬 1");
+  });
+
+  it("다른 가족의 댓글에는 작성자 이름이 보이고, 지우기는 쓴 사람과 여행을 만든 사람에게만 보인다", () => {
+    const comments = [
+      { id: "c1", itemId: "d1-parking", body: "내가 쓴 글", createdBy: "u1", authorName: "나", createdAt: "2026-10-10T01:05:00Z" },
+      { id: "c2", itemId: "d1-parking", body: "엄마가 쓴 글", createdBy: "u2", authorName: "엄마", createdAt: "2026-10-10T03:30:00Z" },
+    ];
+    const first = renderView(snapshot({ comments }), false);
+    const authors = within(stop("d1-parking")).getAllByTestId("comment-author").map((e) => e.textContent);
+    expect(authors).toEqual(["나", "엄마"]);
+    expect(stop("d1-parking").textContent).toContain("10/10 10:05"); // 한국 시간(UTC+9)
+    expect(within(stop("d1-parking")).queryByRole("button", { name: "나의 댓글 삭제" })).toBeTruthy();
+    expect(within(stop("d1-parking")).queryByRole("button", { name: "엄마의 댓글 삭제" })).toBeNull();
+    first.unmount();
+
+    renderView(snapshot({ comments }), true);
+    fireEvent.click(within(stop("d1-parking")).getByRole("button", { name: "엄마의 댓글 삭제" }));
+    expect(within(stop("d1-parking")).queryByText("엄마가 쓴 글")).toBeNull(); // 바로 사라진다
+    expect(h.deleteComment).toHaveBeenCalledWith("trip-1", "c2");
+  });
+
+  it("저장에 실패하면 댓글이 사라지고 오류를 알린다", async () => {
+    h.addComment.mockResolvedValue({ ok: false, error: "저장 실패" });
+    renderView();
+    const box = within(stop("d1-parking")).getByLabelText("한옥마을 인근 주차 댓글 쓰기");
+    fireEvent.change(box, { target: { value: "곧 사라질 글" } });
+    fireEvent.click(within(stop("d1-parking")).getByRole("button", { name: "한옥마을 인근 주차 댓글 등록" }));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("저장 실패"));
+    expect(h.refresh).toHaveBeenCalled(); // 서버 상태로 되돌린다
+  });
+
+  it("댓글 기능 이전의 공용 메모는 '이전 메모'로 보이고 지울 수 있다", () => {
+    renderView(snapshot({ progress: { "d1-parking": { item_id: "d1-parking", status: null, checks: {}, memo: "예전에 쓴 메모", cost: null, review: "", rating: null, updated_at: "" } } }));
+    expect(stop("d1-parking").textContent).toContain("이전 메모");
+    expect(stop("d1-parking").textContent).toContain("예전에 쓴 메모");
+    fireEvent.click(within(stop("d1-parking")).getByRole("button", { name: "한옥마을 인근 주차 이전 메모 지우기" }));
+    expect(h.updateProgress).toHaveBeenCalledWith("trip-1", "d1-parking", { memo: "" });
   });
 
   it("지출은 숫자로 저장하고 비우면 null", () => {
@@ -233,16 +280,18 @@ describe("메모/지출 입력", () => {
     expect(h.updateProgress).toHaveBeenLastCalledWith("trip-1", "d1-parking", { cost: null });
   });
 
-  it("서버가 새 스냅샷을 보내도 입력 중인 메모는 지우지 않고, 입력 중이 아닌 칸은 가족이 바꾼 값을 따라간다", () => {
+  it("서버가 새 스냅샷을 보내도 쓰는 중인 댓글은 지우지 않고, 입력 중이 아닌 칸은 가족이 바꾼 값을 따라간다", () => {
     const view = renderView();
-    const memo = () => within(stop("d1-parking")).getByLabelText(/메모/) as HTMLTextAreaElement;
-    fireEvent.change(memo(), { target: { value: "내가 쓰는 중" } });
+    const box = () => within(stop("d1-parking")).getByLabelText("한옥마을 인근 주차 댓글 쓰기") as HTMLTextAreaElement;
+    fireEvent.change(box(), { target: { value: "내가 쓰는 중" } });
 
     const remote = snapshot({
-      progress: { "d1-parking": { item_id: "d1-parking", status: null, checks: {}, memo: "가족이 쓴 메모", cost: 3000, review: "", rating: null, updated_at: "2026-10-09T10:00:00.000Z" } },
+      progress: { "d1-parking": { item_id: "d1-parking", status: null, checks: {}, memo: "", cost: 3000, review: "", rating: null, updated_at: "2026-10-09T10:00:00.000Z" } },
+      comments: [{ id: "c9", itemId: "d1-parking", body: "가족이 쓴 댓글", createdBy: "u2", authorName: "엄마", createdAt: "2026-10-10T01:00:00Z" }],
     });
-    view.rerender(<TripView initial={remote} isCreator={false} userId="u1" initialPlan="balanced" initialDay={1} />);
-    expect(memo().value).toBe("내가 쓰는 중"); // 입력 중: 유지
+    view.rerender(<TripView initial={remote} isCreator={false} userId="u1" userName="나" initialPlan="balanced" initialDay={1} />);
+    expect(box().value).toBe("내가 쓰는 중"); // 쓰는 중: 유지
+    expect(stop("d1-parking").textContent).toContain("가족이 쓴 댓글"); // 가족이 쓴 댓글이 나타남
     expect((within(stop("d1-parking")).getByLabelText(/지출/) as HTMLInputElement).value).toBe("3000"); // 입력 중 아님: 따라감
   });
 });
@@ -426,7 +475,7 @@ describe("기타", () => {
     const s = snapshot();
     s.def.days.push({ n: 3, label: "3일차", start: "10:00" });
     s.def.plans.balanced.days["3"] = [{ id: "d3-rest", rest: "집에서 쉬기" }];
-    render(<TripView initial={s} isCreator={false} userId="u1" initialPlan="balanced" initialDay={3} />);
+    render(<TripView initial={s} isCreator={false} userId="u1" userName="나" initialPlan="balanced" initialDay={3} />);
     expect(screen.queryByTestId("map")).toBeNull();
     expect(screen.getByText(/지도에 표시할 장소가 아직 없어요/)).toBeTruthy();
   });
@@ -472,7 +521,7 @@ describe("소감과 사진", () => {
       ...extra,
     });
   const photo = (id: string, itemId: string | null, createdBy = "u1") => ({
-    id, itemId, createdBy, createdAt: "2026-10-10T00:00:00Z", url: `https://x/${id}.jpg`, thumbUrl: `https://x/${id}_t.jpg`,
+    id, itemId, createdBy, authorName: createdBy === "u1" ? "나" : "엄마", createdAt: "2026-10-10T00:00:00Z", url: `https://x/${id}.jpg`, thumbUrl: `https://x/${id}_t.jpg`,
   });
 
   it("다녀온 장소(도착/완료)에서만 소감 영역이 보이고, 별점을 누르면 바로 반영되고 저장된다", () => {

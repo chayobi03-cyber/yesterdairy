@@ -49,6 +49,8 @@ export type ProgressRow = {
   review: string;
   rating: number | null;
   updated_at: string;
+  // 마지막으로 이 기록을 고친 사람의 이름 (서버가 채움)
+  authorName?: string | null;
 };
 
 // 여행 사진. url/thumbUrl은 서버가 발급한 서명 URL이라 시간이 지나면 만료된다.
@@ -56,9 +58,20 @@ export type TripPhoto = {
   id: string;
   itemId: string | null;
   createdBy: string;
+  authorName: string;
   createdAt: string;
   url: string;
   thumbUrl: string;
+};
+
+// 장소별 댓글 (작성자 이름 포함)
+export type TripComment = {
+  id: string;
+  itemId: string;
+  body: string;
+  createdBy: string;
+  authorName: string;
+  createdAt: string;
 };
 
 // 여행 전체 소감을 담는 예약 항목 id (장소별 진행 기록과 같은 테이블을 쓴다)

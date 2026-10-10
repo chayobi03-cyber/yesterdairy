@@ -14,6 +14,7 @@ const base = (over: Partial<TripSnapshot> = {}): TripSnapshot => ({
   overrides: {},
   progress: {},
   photos: [],
+  comments: [],
   ...over,
 });
 const PLAN = "balanced";

@@ -111,22 +111,27 @@ test("family trip: map + ordered stops on one page, instant edits, shared with f
     await expect(page.getByRole("region", { name: "전주비빔밥 점심 상세" })).toBeVisible();
   });
 
-  await step("check-list, memo, cost and status are saved", TRIP_URL, async () => {
+  await step("check-list, comment, cost and status are saved", TRIP_URL, async () => {
     const detail = page.getByRole("region", { name: "전주비빔밥 점심 상세" });
     await detail.getByRole("checkbox").first().check();
-    await detail.getByLabel(/메모/).fill(`예약 완료 ${runId}`);
+    // 메모는 작성자와 시각이 남는 댓글이다
+    await detail.getByLabel("전주비빔밥 점심 댓글 쓰기").fill(`예약 완료 ${runId}`);
+    await detail.getByRole("button", { name: "전주비빔밥 점심 댓글 등록" }).click();
+    await expect(detail.getByRole("list", { name: "전주비빔밥 점심 댓글 목록" })).toContainText(`예약 완료 ${runId}`);
     await detail.getByLabel(/지출/).fill("45000");
     await detail.getByLabel(/지출/).blur();
     await detail.getByRole("button", { name: "📍 도착" }).click();
     await expect(detail.getByRole("button", { name: "📍 도착" })).toHaveAttribute("aria-pressed", "true");
-    // 연달아 누른 저장 요청(완료, 체크, 메모, 지출, 상태)이 모두 끝날 때까지 기다린 뒤 새로고침한다
+    // 연달아 누른 저장 요청(완료, 체크, 댓글, 지출, 상태)이 모두 끝날 때까지 기다린 뒤 새로고침한다
     await expect.poll(() => actions.state.n, { timeout: 20_000 }).toBeGreaterThanOrEqual(5);
     actions.stop();
     await expect(page.getByText("저장 중…")).toHaveCount(0);
     await expect(async () => {
       await page.reload();
       const d = page.getByRole("region", { name: "전주비빔밥 점심 상세" });
-      await expect(d.getByLabel(/메모/)).toHaveValue(`예약 완료 ${runId}`, { timeout: 2_000 });
+      const list = d.getByRole("list", { name: "전주비빔밥 점심 댓글 목록" });
+      await expect(list).toContainText(`예약 완료 ${runId}`, { timeout: 2_000 });
+      await expect(list.getByTestId("comment-author").first()).not.toBeEmpty({ timeout: 2_000 }); // 쓴 사람 이름
       await expect(d.getByRole("checkbox").first()).toBeChecked({ timeout: 2_000 });
       await expect(d.getByRole("button", { name: "📍 도착" })).toHaveAttribute("aria-pressed", "true", { timeout: 2_000 });
       await expect(page.getByRole("button", { name: "한옥마을 인근 주차 완료 취소" })).toBeVisible({ timeout: 2_000 });
@@ -273,7 +278,11 @@ test("family trip: map + ordered stops on one page, instant edits, shared with f
       const detail2 = page2.getByRole("region", { name: "전주비빔밥 점심 상세" });
       if ((await detail2.count()) === 0) await stop(page2, "d1-lunch").getByRole("button", { name: /상세 열기/ }).click();
       await expect(detail2).toBeVisible();
-      await expect(detail2.getByLabel(/메모/)).toHaveValue(`예약 완료 ${runId}`);
+      // 첫 번째 구성원의 댓글이 작성자 이름과 함께 보이고, 남의 댓글에는 삭제 버튼이 없다
+      const comments2 = detail2.getByRole("list", { name: "전주비빔밥 점심 댓글 목록" });
+      await expect(comments2).toContainText(`예약 완료 ${runId}`);
+      await expect(comments2.getByTestId("comment-author").first()).not.toBeEmpty();
+      await expect(detail2.getByRole("button", { name: /의 댓글 삭제/ })).toHaveCount(0);
       await expect(detail2.getByRole("button", { name: "📍 도착" })).toHaveAttribute("aria-pressed", "true");
       // 첫 번째 구성원이 바꾼 출발 시각·체류시간이 두 번째 구성원 화면에도 반영돼 있다
       await expect(stop(page2, "d1-lunch")).toContainText("10:00–11:15");
@@ -283,14 +292,16 @@ test("family trip: map + ordered stops on one page, instant edits, shared with f
       // 올린 사람이 아니면 사진 삭제 버튼이 없다
       await detail2.getByRole("button", { name: "전주비빔밥 점심 사진 1 크게 보기" }).click();
       await expect(page2.getByRole("button", { name: "삭제" })).toHaveCount(0);
+      await expect(page2.getByTestId("photo-caption")).toContainText("·"); // 올린 사람 · 시각
       await page2.getByRole("button", { name: "사진 닫기" }).click();
 
-      // 두 번째 구성원이 쓴 메모도 첫 번째 사람에게 보인다
-      await detail2.getByLabel(/메모/).fill(`두 번째 구성원 메모 ${runId}`);
-      await detail2.getByLabel(/메모/).blur();
+      // 두 번째 구성원이 쓴 댓글도 첫 번째 사람에게 보인다
+      await detail2.getByLabel("전주비빔밥 점심 댓글 쓰기").fill(`두 번째 구성원 댓글 ${runId}`);
+      await detail2.getByRole("button", { name: "전주비빔밥 점심 댓글 등록" }).click();
+      await expect(comments2).toContainText(`두 번째 구성원 댓글 ${runId}`);
       await expect(async () => {
         await page.goto(tripUrl);
-        await expect(page.getByLabel(/메모/).first()).toHaveValue(`두 번째 구성원 메모 ${runId}`, { timeout: 2_000 });
+        await expect(page.getByRole("list", { name: "전주비빔밥 점심 댓글 목록" })).toContainText(`두 번째 구성원 댓글 ${runId}`, { timeout: 2_000 });
       }).toPass({ timeout: 20_000 });
 
       // 동시 편집: 두 사람이 같은 날 일정에서 서로 다른 항목을 동시에 제외해도 둘 다 남아야 한다
