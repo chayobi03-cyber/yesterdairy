@@ -214,6 +214,10 @@ test("family trip: map + ordered stops on one page, instant edits, shared with f
     await expect.poll(async () => (await stopOrder(page))[0]).toBe("d1-lunch");
     await expect(page.getByTitle("1. 전주비빔밥 점심")).toBeVisible(); // 번호도 순서를 따라간다
 
+    // 카드의 "순서" 선택으로 한 번에 원하는 자리(2번째)까지 옮긴다 (한 칸씩 ↑를 반복하지 않아도 됨)
+    await page.getByLabel("한옥마을 골목 산책 순서 바꾸기").selectOption("1");
+    await expect.poll(async () => (await stopOrder(page))[1]).toBe("d1-hanok-walk");
+
     // 고정 시작 시각: 저녁을 18:00으로 바꾸면 카드와 하루 요약에 바로 반영된다
     await page.getByLabel("저녁 식사 고정 시작 시각").fill("18:00");
     await expect(stop(page, "d1-dinner")).toContainText("18:00");

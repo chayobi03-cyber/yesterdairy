@@ -66,6 +66,15 @@ describe("applyDayOp", () => {
     expect(new Set(items.map((i) => i.id)).size).toBe(4);
   });
 
+  it("add/addRest: index로 원하는 위치에 넣는다 (범위를 벗어나면 맨 끝)", () => {
+    expect(ok(applyDayOp(base(), { type: "add", placeId: "x", id: "n", index: 0 }, ctx)).map((i) => i.id)).toEqual(["n", "1", "2", "3"]);
+    expect(ok(applyDayOp(base(), { type: "add", placeId: "x", id: "n", index: 2 }, ctx)).map((i) => i.id)).toEqual(["1", "2", "n", "3"]);
+    expect(ok(applyDayOp(base(), { type: "add", placeId: "x", id: "n", index: 99 }, ctx)).map((i) => i.id)).toEqual(["1", "2", "3", "n"]);
+    expect(ok(applyDayOp(base(), { type: "add", placeId: "x", id: "n", index: -5 }, ctx)).map((i) => i.id)).toEqual(["n", "1", "2", "3"]);
+    expect(ok(applyDayOp(base(), { type: "add", placeId: "x", id: "n", index: 1.5 }, ctx)).map((i) => i.id)).toEqual(["1", "2", "3", "n"]);
+    expect(ok(applyDayOp(base(), { type: "addRest", title: "휴식", id: "r", index: 1 }, ctx)).map((i) => i.id)).toEqual(["1", "r", "2", "3"]);
+  });
+
   it("add/addRest: 하루 항목 수 상한", () => {
     const full: PlanItem[] = Array.from({ length: MAX_ITEMS_PER_DAY }, (_, i) => ({ id: `i${i}`, p: "x" }));
     expect(applyDayOp(full, { type: "add", placeId: "x" }, ctx).ok).toBe(false);

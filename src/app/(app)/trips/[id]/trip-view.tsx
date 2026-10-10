@@ -161,9 +161,34 @@ export function TripView({ initial, isCreator, userId, userName, initialPlan, in
       { enableHighAccuracy: true, timeout: 10_000 },
     );
   };
+  // 새 항목은 기본적으로 "지금 가야 할 곳" 바로 다음에 들어간다 (맨 끝까지 끌어올리지 않아도 되게).
+  // 지금 가야 할 곳이 없으면(모두 끝났거나 일정이 비어 있으면) 맨 끝.
+  const currentIndex = current ? rows.findIndex((r) => r.id === current.id) : -1;
+  const defaultIndex = currentIndex >= 0 ? currentIndex + 1 : rows.length;
+  const slots = useMemo(() => rows.map((r) => r.place?.name ?? r.item.rest ?? "일정"), [rows]);
+  // 방금 추가·이동한 항목이 화면에서 보이도록 열고/스크롤한다
+  const reveal = (id: string, open: boolean) => {
+    if (open) setSelectedId(id);
+    setScrollReq((r) => ({ id, n: (r?.n ?? 0) + 1 }));
+  };
+  const addPlaceAt = (placeId: string, index: number) => {
+    const id = uid("it");
+    if (edit(plan, day, { type: "add", placeId, id, index })) reveal(id, true);
+  };
+  const addRestAt = (title: string, index: number) => {
+    const id = uid("it");
+    const ok = edit(plan, day, { type: "addRest", title, id, index });
+    if (ok) reveal(id, true);
+    return ok;
+  };
+  const moveItem = (from: number, to: number) => {
+    const id = rows[from]?.id;
+    if (edit(plan, day, { type: "moveTo", from, to }) && id) reveal(id, false);
+  };
   const onEdit = (op: DayOp, confirmMessage?: string) => {
     if (confirmMessage && !window.confirm(confirmMessage)) return;
-    edit(plan, day, op);
+    const movedId = op.type === "move" ? rows[op.index]?.id : undefined;
+    if (edit(plan, day, op) && movedId) reveal(movedId, false);
   };
 
   const placeOptions = useMemo(() => def.places.map((p) => ({ id: p.id, name: p.name })), [def.places]);
@@ -248,7 +273,7 @@ export function TripView({ initial, isCreator, userId, userName, initialPlan, in
                 center={center}
                 visible={mapOpen}
                 onSelect={selectFromMap}
-                onAdd={(placeId) => edit(plan, day, { type: "add", placeId, id: uid("it") })}
+                onAdd={(placeId) => addPlaceAt(placeId, defaultIndex)}
                 picking={!!picking}
                 pickPoint={pickPoint}
                 onPickPoint={(lat, lon) => {
@@ -376,6 +401,7 @@ export function TripView({ initial, isCreator, userId, userName, initialPlan, in
                   onPatch={patchProgress}
                   onEdit={onEdit}
                   onPickLocation={startPick}
+                  onMoveTo={moveItem}
                   placeOptions={placeOptions}
                   comments={snap.comments.filter((c) => c.itemId === r.id)}
                   viewerId={userId}
@@ -397,9 +423,16 @@ export function TripView({ initial, isCreator, userId, userName, initialPlan, in
       {editMode && (
         <EditPanel
           places={def.places.map((p) => ({ id: p.id, name: p.name }))}
-          onAddPlace={(placeId) => edit(plan, day, { type: "add", placeId, id: uid("it") })}
-          onAddRest={(title) => edit(plan, day, { type: "addRest", title, id: uid("it") })}
-          onCreatePlace={(input, addNow) => createPlace(plan, day, input, addNow)}
+          slots={slots}
+          defaultIndex={defaultIndex}
+          onAddPlace={addPlaceAt}
+          onAddRest={addRestAt}
+          onCreatePlace={(input, addNow, index) => {
+            const itemId = uid("it");
+            const ok = createPlace(plan, day, input, addNow, { index, itemId });
+            if (ok && addNow) reveal(itemId, true);
+            return ok;
+          }}
           onReset={() => {
             if (window.confirm("이 날짜의 수정 내용을 지우고 기본 일정으로 되돌릴까요? (진행 기록은 유지돼요)")) edit(plan, day, { type: "reset" });
           }}

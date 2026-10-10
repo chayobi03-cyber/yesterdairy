@@ -268,7 +268,7 @@ export async function editDay(tripId: string, planId: string, day: number, op: D
 // placeId / itemId: 화면이 먼저 반영할 때 쓴 id를 그대로 받아 서버와 화면이 같은 id를 갖게 한다
 export async function addPlace(
   tripId: string,
-  input: NewPlaceInput & { planId: string; day: number; addNow: boolean; placeId: string; itemId: string },
+  input: NewPlaceInput & { planId: string; day: number; addNow: boolean; placeId: string; itemId: string; index?: number },
 ): Promise<Result> {
   const c = await ctx();
   if (!c) return NOT_SIGNED_IN;
@@ -299,7 +299,7 @@ export async function addPlace(
   }
 
   if (input.addNow) {
-    const r = await editDay(tripId, input.planId, input.day, { type: "add", placeId: built.place.id, id: input.itemId });
+    const r = await editDay(tripId, input.planId, input.day, { type: "add", placeId: built.place.id, id: input.itemId, index: input.index });
     if (!r.ok) return { ok: false, error: `장소는 저장했지만 일정에 넣지 못했어요: ${r.error}` };
   }
   return { ok: true };

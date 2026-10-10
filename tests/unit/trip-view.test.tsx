@@ -732,3 +732,63 @@ describe("지도 위치 지정", () => {
     expect(h.refresh).toHaveBeenCalled();
   });
 });
+
+describe("추가·순서 바꾸기 (맨 아래로 붙지 않게)", () => {
+  const enter = () => fireEvent.click(screen.getByRole("button", { name: "일정 편집" }));
+
+  it("새 장소는 '지금 가야 할 곳' 바로 다음에 들어가고, 열려서 보인다", () => {
+    renderView();
+    enter();
+    const before = orderOfStops();
+    expect((screen.getByLabelText("넣을 위치") as HTMLSelectElement).value).toBe("1"); // 1번(주차) 다음
+    fireEvent.change(screen.getByLabelText("추가할 장소"), { target: { value: "cafe" } });
+    fireEvent.click(screen.getByRole("button", { name: "선택한 장소를 일정에 추가" }));
+    const after = orderOfStops();
+    expect(after).toHaveLength(before.length + 1);
+    expect(after[0]).toBe(before[0]);
+    expect(after[2]).toBe(before[1]);
+    expect(h.editDay).toHaveBeenCalledWith("trip-1", "balanced", 1, expect.objectContaining({ type: "add", placeId: "cafe", index: 1 }));
+    // 방금 넣은 항목의 상세가 열려 있다
+    const newId = after[1];
+    expect(within(stop(newId)).getByRole("region", { name: /상세/ })).toBeTruthy();
+  });
+
+  it("넣을 위치를 직접 고를 수 있다 (맨 처음 / 특정 장소 다음)", () => {
+    renderView();
+    enter();
+    fireEvent.change(screen.getByLabelText("넣을 위치"), { target: { value: "0" } });
+    fireEvent.change(screen.getByLabelText("추가할 장소"), { target: { value: "cafe" } });
+    fireEvent.click(screen.getByRole("button", { name: "선택한 장소를 일정에 추가" }));
+    expect(h.editDay).toHaveBeenCalledWith("trip-1", "balanced", 1, expect.objectContaining({ type: "add", placeId: "cafe", index: 0 }));
+    expect(mapStops().length).toBeGreaterThan(0);
+  });
+
+  it("장소 없는 일정도 같은 위치 선택을 따른다", () => {
+    renderView();
+    enter();
+    fireEvent.change(screen.getByLabelText("넣을 위치"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("일정 이름"), { target: { value: "휴식" } });
+    fireEvent.click(screen.getByRole("button", { name: "장소 없는 일정 추가" }));
+    expect(h.editDay).toHaveBeenCalledWith("trip-1", "balanced", 1, expect.objectContaining({ type: "addRest", title: "휴식", index: 3 }));
+    expect(orderOfStops()[3]).not.toMatch(/^d1-/);
+  });
+
+  it("카드의 '순서' 선택으로 원하는 자리까지 한 번에 옮긴다", () => {
+    renderView();
+    enter();
+    const ids = orderOfStops();
+    const from = ids.indexOf("d1-snack");
+    fireEvent.change(screen.getByLabelText("초코파이·길거리 간식 순서 바꾸기"), { target: { value: "1" } });
+    expect(orderOfStops()[1]).toBe("d1-snack");
+    expect(h.editDay).toHaveBeenCalledWith("trip-1", "balanced", 1, { type: "moveTo", from, to: 1 });
+  });
+
+  it("필수 방문지를 넘어서는 이동은 거부하고 안내한다", async () => {
+    renderView();
+    enter();
+    // 전동성당(필수)과 경기전(필수) 사이로는 못 들어가는 게 아니라, 필수끼리 추월만 막는다
+    fireEvent.change(screen.getByLabelText("전동성당 순서 바꾸기"), { target: { value: "5" } });
+    expect((await screen.findByRole("alert")).textContent).toContain("필수 방문지끼리의 순서");
+    expect(h.editDay).not.toHaveBeenCalled();
+  });
+});
