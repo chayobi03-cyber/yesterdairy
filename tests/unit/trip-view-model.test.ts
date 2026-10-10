@@ -137,7 +137,7 @@ describe("dayStats / totalCost", () => {
     expect(totalCost(s)).toBe(2000);
   });
   it("빈 날짜는 0%", () => {
-    expect(dayStats(buildRows(base(), "relaxed", 3))).toEqual({ total: 0, done: 0, skipped: 0, percent: 0 });
+    expect(dayStats(buildRows(base(), PLAN, 3))).toEqual({ total: 0, done: 0, skipped: 0, percent: 0 });
   });
 });
 

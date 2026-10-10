@@ -37,7 +37,10 @@ export function TripView({ initial, isCreator, userId, userName, initialPlan, in
   const def = snap.def;
   const planIds = Object.keys(def.plans);
 
-  const [plan, setPlan] = useState(initialPlan);
+  const [planState, setPlan] = useState(initialPlan);
+  // 보고 있던 일정이 사라졌으면(다른 가족이 정리했거나 일정을 하나로 합쳤을 때) 기본 일정으로 돌아간다
+  const fallbackPlan = def.defaultPlan && def.plans[def.defaultPlan] ? def.defaultPlan : planIds[0];
+  const plan = def.plans[planState] ? planState : fallbackPlan;
   const [day, setDay] = useState(initialDay);
   const [editMode, setEditMode] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(() => currentStopId(initial, initialPlan, initialDay));

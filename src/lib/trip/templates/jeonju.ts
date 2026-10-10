@@ -4,6 +4,7 @@ import type { TripDef } from "../types";
 // 실시간 검증값이 아니므로 방문 전 공식 채널에서 확인해야 한다.
 // 시간·요금 정보의 근거와 한계는 docs/jeonju-template-research.md 참고.
 // 항목의 at(고정 시작 시각)은 체크인·저녁처럼 시각이 정해진 항목에 쓴다.
+// 일정은 하나만 둔다(여유형·체험형 대안은 없앰): 바꾸고 싶은 건 편집 모드에서 직접 고친다.
 export const jeonjuTemplate: TripDef = {
   "id": "jeonju-2d",
   "title": "전주 가족 1박 2일",
@@ -280,8 +281,8 @@ export const jeonjuTemplate: TripDef = {
   ],
   "plans": {
     "balanced": {
-      "label": "균형형",
-      "desc": "대표 관광과 여유를 함께 고려한 기본 일정",
+      "label": "기본 일정",
+      "desc": "대표 관광과 여유를 함께 고려한 일정",
       "days": {
         "1": [
           {
@@ -331,123 +332,6 @@ export const jeonjuTemplate: TripDef = {
             "id": "d2-mural",
             "p": "mural",
             "included": false
-          },
-          {
-            "id": "d2-market",
-            "p": "market",
-            "at": "11:30"
-          },
-          {
-            "id": "d2-fin",
-            "p": "fin"
-          }
-        ]
-      }
-    },
-    "experience": {
-      "label": "체험형",
-      "desc": "체험·공연 항목을 더 넣은 일정 (예약·접수 확인 필수)",
-      "days": {
-        "1": [
-          {
-            "id": "d1-parking",
-            "p": "parking"
-          },
-          {
-            "id": "d1-lunch",
-            "p": "lunch"
-          },
-          {
-            "id": "d1-jeondong",
-            "p": "jeondong"
-          },
-          {
-            "id": "d1-gyeonggijeon",
-            "p": "gyeonggijeon"
-          },
-          {
-            "id": "d1-snack",
-            "p": "snack"
-          },
-          {
-            "id": "d1-hanok-exp",
-            "p": "hanok-exp"
-          },
-          {
-            "id": "d1-stay",
-            "p": "stay"
-          },
-          {
-            "id": "d1-dinner",
-            "p": "dinner",
-            "at": "17:30"
-          }
-        ],
-        "2": [
-          {
-            "id": "d2-hyanggyo",
-            "p": "hyanggyo"
-          },
-          {
-            "id": "d2-omokdae",
-            "p": "omokdae"
-          },
-          {
-            "id": "d2-mural",
-            "p": "mural"
-          },
-          {
-            "id": "d2-market",
-            "p": "market"
-          },
-          {
-            "id": "d2-fin",
-            "p": "fin"
-          }
-        ]
-      }
-    },
-    "relaxed": {
-      "label": "여유형",
-      "desc": "선택 항목을 줄이고 휴식 시간을 확보한 일정",
-      "days": {
-        "1": [
-          {
-            "id": "d1-parking",
-            "p": "parking"
-          },
-          {
-            "id": "d1-lunch",
-            "p": "lunch"
-          },
-          {
-            "id": "d1-jeondong",
-            "p": "jeondong"
-          },
-          {
-            "id": "d1-gyeonggijeon",
-            "p": "gyeonggijeon"
-          },
-          {
-            "id": "d1-cafe",
-            "p": "cafe"
-          },
-          {
-            "id": "d1-stay",
-            "p": "stay",
-            "dur": 90
-          },
-          {
-            "id": "d1-dinner",
-            "p": "dinner",
-            "at": "17:30"
-          }
-        ],
-        "2": [
-          {
-            "id": "d2-hyanggyo",
-            "p": "hyanggyo",
-            "dur": 90
           },
           {
             "id": "d2-market",
