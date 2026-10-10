@@ -5,7 +5,7 @@
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef } from "react";
 import L from "leaflet";
-import { catColor, directionsUrl } from "@/lib/trip/engine";
+import { catColor, directionsUrl, kakaoMapUrl } from "@/lib/trip/engine";
 import type { CandidatePin, MapStop } from "@/lib/trip/view-model";
 
 export type TripMapProps = {
@@ -20,6 +20,9 @@ export type TripMapProps = {
   onSelect: (id: string) => void;
   onAdd: (placeId: string) => void;
   // 위치 지정 모드: 지도를 누른 곳이 pickPoint가 된다 (모드가 켜진 동안 핀 선택·팝업은 그대로 동작)
+  // 내 현재 위치(파란 점). 크게 보기(fullscreen)에서는 마우스 휠 확대도 켠다
+  myPos?: [number, number] | null;
+  fullscreen?: boolean;
   picking?: boolean;
   pickPoint?: [number, number] | null;
   onPickPoint?: (lat: number, lon: number) => void;
@@ -69,13 +72,16 @@ function popupFor(info: { name: string; addr?: string; hours?: string; lat: numb
     box.appendChild(line);
   }
   box.appendChild(document.createElement("br"));
-  const link = document.createElement("a");
-  link.href = directionsUrl({ id: "x", name: info.name, lat: info.lat, lon: info.lon }, "walk");
-  link.target = "_blank";
-  link.rel = "noopener noreferrer";
-  link.textContent = "길찾기 ↗";
-  link.style.cssText = "color:#cf6f28;font-weight:800";
-  box.appendChild(link);
+  const target = { id: "x", name: info.name, lat: info.lat, lon: info.lon };
+  for (const [label, href] of [["카카오맵 길찾기 ↗", kakaoMapUrl(target)], ["구글 ↗", directionsUrl(target, "walk")]] as const) {
+    const link = document.createElement("a");
+    link.href = href;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = label;
+    link.style.cssText = "color:#cf6f28;font-weight:800;margin-right:10px";
+    box.appendChild(link);
+  }
   if (action) {
     const btn = document.createElement("button");
     btn.type = "button";
@@ -88,7 +94,7 @@ function popupFor(info: { name: string; addr?: string; hours?: string; lat: numb
 }
 
 export default function TripMap(props: TripMapProps) {
-  const { stops, candidates, selectedId, focusNonce, fitNonce, center, visible, onSelect, onAdd, picking = false, pickPoint = null, onPickPoint } = props;
+  const { stops, candidates, selectedId, focusNonce, fitNonce, center, visible, onSelect, onAdd, picking = false, pickPoint = null, onPickPoint, myPos = null, fullscreen = false } = props;
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
@@ -99,6 +105,7 @@ export default function TripMap(props: TripMapProps) {
     cb.current = { onSelect, onAdd, onPickPoint, picking };
   });
   const pickMarkerRef = useRef<L.Marker | null>(null);
+  const myMarkerRef = useRef<L.CircleMarker | null>(null);
 
   // 동선이 실제로 바뀌었을 때만 화면 맞춤을 다시 한다 (선택만 바뀔 때는 맞춤하지 않음)
   const routeKey = stops.map((s) => `${s.id}@${s.lat},${s.lon}`).join("|") + "#" + candidates.length;
@@ -116,6 +123,7 @@ export default function TripMap(props: TripMapProps) {
     return () => {
       map.remove();
       pickMarkerRef.current = null;
+      myMarkerRef.current = null;
       mapRef.current = null;
       layerRef.current = null;
       markers.clear();
@@ -207,6 +215,34 @@ export default function TripMap(props: TripMapProps) {
     pickMarkerRef.current = L.marker(pickPoint, { icon: pickIcon(), interactive: false, zIndexOffset: 1000 }).addTo(map);
     if (!map.getBounds().contains(pickPoint)) map.panTo(pickPoint);
   }, [picking, pickPoint]);
+
+  // 내 위치: 파란 점(정확도 반경은 그리지 않는다 — 실내/도심에서는 반경이 커서 오히려 혼란스럽다)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!myPos) {
+      myMarkerRef.current?.remove();
+      myMarkerRef.current = null;
+      return;
+    }
+    if (myMarkerRef.current) {
+      myMarkerRef.current.setLatLng(myPos);
+      return;
+    }
+    myMarkerRef.current = L.circleMarker(myPos, { radius: 8, color: "#fff", weight: 3, fillColor: "#2f7de1", fillOpacity: 1, interactive: false }).addTo(map);
+    // 처음 잡힌 순간에만 내 위치가 보이도록 이동한다 (이후 위치 갱신은 지도를 움직이지 않는다)
+    map.setView(myPos, Math.max(map.getZoom(), 16), { animate: true });
+  }, [myPos]);
+
+  // 크게 보기: 컨테이너 크기가 바뀌므로 다시 계산하고, 데스크톱에서는 휠 확대를 켠다
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (fullscreen) map.scrollWheelZoom.enable();
+    else map.scrollWheelZoom.disable();
+    const t = setTimeout(() => map.invalidateSize(), 60);
+    return () => clearTimeout(t);
+  }, [fullscreen]);
 
   // 접었다 펼친 뒤 크기를 다시 계산
   useEffect(() => {
