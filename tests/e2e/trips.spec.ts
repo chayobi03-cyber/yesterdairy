@@ -235,6 +235,9 @@ test("family trip: map + ordered stops on one page, instant edits, shared with f
     // 보기 모드로 돌아가면 제외된 항목은 숨겨진다
     await page.getByRole("button", { name: "편집 끝내기" }).click();
     await expect(stop(page, "d1-snack")).toHaveCount(0);
+    // 편집은 화면에 먼저 반영되고 서버 저장은 순서대로 뒤에서 이어진다. 저장이 끝나기 전에 다른 페이지로
+    // 이동하면 대기 중인 저장이 사라지므로(출발 시각·체류시간·새 장소 등), "저장 중…"이 없어질 때까지 기다린다.
+    await expect(page.getByText("저장 중…")).toHaveCount(0, { timeout: 45_000 });
   });
 
   await step("phone width: no horizontal overflow", TRIP_URL, async () => {
