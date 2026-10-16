@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CAT_COLORS, LEGEND, catColor, currentIndex, directionsUrl, dragTargetIndex, fmt, hasCoord, mandatoryStatus, move,
-  routeUrl, timeline, toMin, travel, validAt, validCoord, validateTrip,
+  routeUrl, kakaoMapUrl, naverMapUrl, formatDistance, haversineKm, timeline, toMin, travel, validAt, validCoord, validateTrip,
 } from "../../src/lib/trip/engine";
 import { jeonjuTemplate } from "../../src/lib/trip/templates/jeonju";
 import type { Place, PlanItem } from "../../src/lib/trip/types";
@@ -263,5 +263,36 @@ describe("고정 시작 시각(at)", () => {
     expect(jeonjuTemplate.mandatory).not.toContain("nanjang");
     const nanjang = jeonjuTemplate.places.find((p) => p.id === "nanjang")!;
     expect(hasCoord(nanjang)).toBe(false);
+  });
+});
+
+describe("지도 앱 링크 / 거리 표시", () => {
+  it("카카오맵: 좌표가 있으면 장소를 도착지로 길찾기, 없으면 주소 검색", () => {
+    expect(kakaoMapUrl({ id: "a", name: "메르밀진미집 본점", lat: 35.8105, lon: 127.1512 })).toBe(
+      `https://map.kakao.com/link/to/${encodeURIComponent("메르밀진미집 본점")},35.8105,127.1512`,
+    );
+    expect(kakaoMapUrl({ id: "b", name: "숙소", addr: "전북 전주시 완산구 간납로 8" })).toBe(
+      `https://map.kakao.com/link/search/${encodeURIComponent("전북 전주시 완산구 간납로 8")}`,
+    );
+    // 쉼표가 들어간 이름도 좌표 구분자와 섞이지 않는다
+    expect(kakaoMapUrl({ id: "c", name: "a,b", lat: 1, lon: 2 })).toBe("https://map.kakao.com/link/to/a%2Cb,1,2");
+  });
+
+  it("네이버지도: 주소(없으면 이름)로 검색", () => {
+    expect(naverMapUrl({ id: "a", name: "경기전" })).toBe(`https://map.naver.com/p/search/${encodeURIComponent("경기전")}`);
+    expect(naverMapUrl({ id: "a", name: "경기전", addr: "전주 완산구" })).toContain(encodeURIComponent("전주 완산구"));
+  });
+
+  it("거리: 1km 미만은 10m 단위 m, 이상은 km 소수 1자리", () => {
+    expect(formatDistance(0.004)).toBe("10m");
+    expect(formatDistance(0.3141)).toBe("310m");
+    expect(formatDistance(0.999)).toBe("1000m");
+    expect(formatDistance(1.26)).toBe("1.3km");
+  });
+
+  it("haversineKm: 같은 점은 0, 위도 0.01도는 약 1.1km", () => {
+    expect(haversineKm({ lat: 35.8, lon: 127.1 }, { lat: 35.8, lon: 127.1 })).toBe(0);
+    expect(haversineKm({ lat: 35.8, lon: 127.1 }, { lat: 35.81, lon: 127.1 })).toBeGreaterThan(1.1);
+    expect(haversineKm({ lat: 35.8, lon: 127.1 }, { lat: 35.81, lon: 127.1 })).toBeLessThan(1.12);
   });
 });

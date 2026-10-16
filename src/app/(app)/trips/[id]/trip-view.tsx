@@ -4,8 +4,8 @@
 // 탭하면 서버 응답을 기다리지 않고 바로 반영되고(useTripState), 저장은 뒤에서 한다.
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { Fragment, useEffect, useMemo, useState } from "react";
-import { LEGEND, directionsUrl, fmt, hasCoord, routeUrl, uid } from "@/lib/trip/engine";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { LEGEND, fmt, formatDistance, haversineKm, hasCoord, kakaoMapUrl, routeUrl, uid } from "@/lib/trip/engine";
 import type { DayOp } from "@/lib/trip/day-ops";
 import { useDragReorder } from "@/lib/trip/use-drag-reorder";
 import { useTripState } from "@/lib/trip/use-trip-state";
@@ -49,6 +49,11 @@ export function TripView({ initial, isCreator, userId, userName, initialPlan, in
   const [legendFilter, setLegendFilter] = useState<string | null>(null);
   const [focusNonce, setFocusNonce] = useState(0);
   const [fitNonce, setFitNonce] = useState(0);
+  // 지도 크게 보기(전체 화면)와 내 위치(파란 점)
+  const [mapFull, setMapFull] = useState(false);
+  const [myPos, setMyPos] = useState<[number, number] | null>(null);
+  const [mapNote, setMapNote] = useState<string | null>(null);
+  const watchId = useRef<number | null>(null);
   // 위치 지정 모드: 지도를 눌러 장소의 좌표를 정한다
   const [picking, setPicking] = useState<{ placeId: string; name: string } | null>(null);
   const [pickPoint, setPickPoint] = useState<[number, number] | null>(null);
@@ -128,6 +133,64 @@ export function TripView({ initial, isCreator, userId, userName, initialPlan, in
       setScrollReq((r) => ({ id: next, n: (r?.n ?? 0) + 1 }));
     }
   };
+  const stopLocate = () => {
+    if (watchId.current != null) navigator.geolocation?.clearWatch(watchId.current);
+    watchId.current = null;
+    setMyPos(null);
+    setMapNote(null);
+  };
+  const toggleLocate = () => {
+    if (watchId.current != null) return stopLocate();
+    if (!navigator.geolocation) {
+      setMapNote("이 기기에서는 현재 위치를 쓸 수 없어요.");
+      return;
+    }
+    setMapNote("현재 위치를 찾는 중…");
+    watchId.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        setMyPos([pos.coords.latitude, pos.coords.longitude]);
+        setMapNote(null);
+      },
+      () => {
+        stopLocate();
+        setMapNote("현재 위치를 가져오지 못했어요. 브라우저의 위치 권한을 확인해주세요.");
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 },
+    );
+  };
+  useEffect(
+    () => () => {
+      if (watchId.current != null) navigator.geolocation?.clearWatch(watchId.current);
+    },
+    [],
+  );
+  // 크게 보기 동안은 뒤 화면이 스크롤되지 않게 하고, Esc로 닫는다
+  useEffect(() => {
+    if (!mapFull) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMapFull(false);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [mapFull]);
+  const openFull = () => {
+    setMapOpen(true);
+    setMapFull(true);
+  };
+  // 크게 보기 아래 카드: 선택한 장소(없으면 지금 장소), 이전/다음 장소로 넘기기
+  const included = rows.filter((r) => r.included);
+  const sheetRow = included.find((r) => r.id === (selected ?? current?.id)) ?? null;
+  const sheetPos = sheetRow ? included.findIndex((r) => r.id === sheetRow.id) : -1;
+  const focusStop = (id: string) => {
+    setSelectedId(id);
+    setFocusNonce((n) => n + 1);
+  };
+  const distanceTo = (place?: { lat?: number; lon?: number } | null) =>
+    myPos && place && hasCoord(place as never) ? formatDistance(haversineKm({ lat: myPos[0], lon: myPos[1] }, place as { lat: number; lon: number })) : null;
+
   const startPick = (placeId: string) => {
     const place = def.places.find((p) => p.id === placeId);
     if (!place) return;
@@ -238,7 +301,10 @@ export function TripView({ initial, isCreator, userId, userName, initialPlan, in
         <p role="alert" className="rounded-xl bg-accent-50 px-3 py-2 text-xs text-accent-700">⚠️ 필수 방문지가 일정에서 제외돼 있어요: {excluded.join(", ")}</p>
       )}
 
-      <section aria-label="지도와 지금 장소" className="sticky top-0 z-30 -mx-5 flex flex-col gap-2 bg-paper/95 px-5 pb-2 pt-1 backdrop-blur">
+      <section
+        aria-label={mapFull ? "지도 크게 보기" : "지도와 지금 장소"}
+        className={mapFull ? "fixed inset-0 z-[70] flex h-dvh flex-col gap-2 bg-paper p-3" : "sticky top-0 z-30 -mx-5 flex flex-col gap-2 bg-paper/95 px-5 pb-2 pt-1 backdrop-blur"}
+      >
         <div className="-mx-5 flex gap-1.5 overflow-x-auto px-5" role="toolbar" aria-label="지도 도구">
           <button type="button" className={mini(!showAll)} onClick={() => { setShowAll(false); setFitNonce((n) => n + 1); }}>오늘 동선</button>
           <button type="button" className={mini(showAll)} aria-pressed={showAll} onClick={() => setShowAll((v) => !v)}>전체 장소</button>
@@ -247,8 +313,17 @@ export function TripView({ initial, isCreator, userId, userName, initialPlan, in
               경로 ↗
             </a>
           )}
-          <button type="button" className={mini()} aria-expanded={mapOpen} aria-label={mapOpen ? "지도 접기" : "지도 펼치기"} onClick={() => setMapOpen((v) => !v)}>{mapOpen ? "접기" : "펼치기"}</button>
+          <button type="button" className={mini(myPos != null)} aria-pressed={myPos != null} onClick={toggleLocate}>📍 내 위치</button>
+          {mapFull ? (
+            <button type="button" className={mini(true)} onClick={() => setMapFull(false)} aria-label="지도 크게 보기 닫기">✕ 닫기</button>
+          ) : (
+            <>
+              <button type="button" className={mini()} onClick={openFull} aria-label="지도 크게 보기">⛶ 크게 보기</button>
+              <button type="button" className={mini()} aria-expanded={mapOpen} aria-label={mapOpen ? "지도 접기" : "지도 펼치기"} onClick={() => setMapOpen((v) => !v)}>{mapOpen ? "접기" : "펼치기"}</button>
+            </>
+          )}
         </div>
+        {mapNote && <p role="status" className="text-xs text-neutral-500">{mapNote}</p>}
 
         {picking && (
           <div role="region" aria-label="위치 지정" className="flex flex-col gap-1.5 rounded-2xl border border-accent-300 bg-accent-50 px-3 py-2">
@@ -264,8 +339,8 @@ export function TripView({ initial, isCreator, userId, userName, initialPlan, in
           </div>
         )}
 
-        <div className={mapOpen ? "" : "hidden"}>
-          <div className={`${picking ? "h-64" : "h-40"} overflow-hidden rounded-2xl border border-line bg-neutral-100`}>
+        <div className={mapOpen ? (mapFull ? "flex min-h-0 flex-1 flex-col gap-1.5" : "") : "hidden"}>
+          <div className={`${mapFull ? "min-h-0 flex-1" : picking ? "h-64" : "h-40"} overflow-hidden rounded-2xl border border-line bg-neutral-100`}>
             {hasMap ? (
               <TripMap
                 stops={mapStops}
@@ -277,6 +352,8 @@ export function TripView({ initial, isCreator, userId, userName, initialPlan, in
                 visible={mapOpen}
                 onSelect={selectFromMap}
                 onAdd={(placeId) => addPlaceAt(placeId, defaultIndex)}
+                myPos={myPos}
+                fullscreen={mapFull}
                 picking={!!picking}
                 pickPoint={pickPoint}
                 onPickPoint={(lat, lon) => {
@@ -308,14 +385,41 @@ export function TripView({ initial, isCreator, userId, userName, initialPlan, in
           )}
         </div>
 
-        {current ? (
+        {mapFull ? (
+          sheetRow && (
+            <div className="flex flex-col gap-2 rounded-2xl border border-accent-200 bg-accent-50 px-3 py-2" data-testid="map-sheet">
+              <div className="flex items-center gap-2">
+                <button type="button" aria-label="이전 장소" disabled={sheetPos <= 0} onClick={() => focusStop(included[sheetPos - 1].id)} className="min-h-10 w-10 shrink-0 rounded-xl border border-line bg-card disabled:opacity-40">‹</button>
+                <div className="min-w-0 flex-1 text-center">
+                  <span className="block truncate text-sm font-semibold">{sheetRow.number}. {sheetRow.place?.name ?? sheetRow.item.rest}</span>
+                  <span className="block truncate text-xs text-neutral-500">
+                    {sheetRow.start != null && sheetRow.end != null ? `${fmt(sheetRow.start)}–${fmt(sheetRow.end)} · ` : ""}{sheetRow.dur}분
+                    {distanceTo(sheetRow.place) && ` · 내 위치에서 약 ${distanceTo(sheetRow.place)} (직선)`}
+                  </span>
+                </div>
+                <button type="button" aria-label="다음 장소" disabled={sheetPos >= included.length - 1} onClick={() => focusStop(included[sheetPos + 1].id)} className="min-h-10 w-10 shrink-0 rounded-xl border border-line bg-card disabled:opacity-40">›</button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {sheetRow.place && (hasCoord(sheetRow.place) || sheetRow.place.addr) && (
+                  <a href={kakaoMapUrl(sheetRow.place)} target="_blank" rel="noopener noreferrer" className="flex min-h-9 items-center rounded-xl border border-accent-300 px-3 text-xs font-medium text-accent-700">카카오맵 길찾기 ↗</a>
+                )}
+                {sheetRow.place && !hasCoord(sheetRow.place) && (
+                  <button type="button" onClick={() => startPick(sheetRow.place!.id)} className="min-h-9 rounded-xl border border-line bg-card px-3 text-xs">📍 지도에서 위치 지정</button>
+                )}
+                <button type="button" onClick={() => quickDone(sheetRow.id)} aria-label="이 장소 완료" className="ml-auto min-h-9 rounded-xl bg-accent-400 px-3 text-xs font-medium text-white">
+                  {sheetRow.status === "done" ? "완료 취소" : "완료 ✓"}
+                </button>
+              </div>
+            </div>
+          )
+        ) : current ? (
           <div className="flex items-center gap-2 rounded-2xl border border-accent-200 bg-accent-50 px-3 py-1.5" data-testid="now-bar">
             <button type="button" className="min-w-0 flex-1 text-left" onClick={() => selectFromMap(current.id)} aria-label={`지금 장소로 이동: ${current.place?.name ?? current.item.rest}`}>
-              <span className="block text-[11px] text-accent-700">지금 가야 할 곳</span>
+              <span className="block text-[11px] text-accent-700">지금 가야 할 곳{distanceTo(current.place) && ` · 내 위치에서 약 ${distanceTo(current.place)}`}</span>
               <span className="block truncate text-sm font-semibold">{current.number}. {current.place?.name ?? current.item.rest}</span>
             </button>
             {current.place && (hasCoord(current.place) || current.place.addr) && (
-              <a href={directionsUrl(current.place, "walk")} target="_blank" rel="noopener noreferrer" className="flex min-h-9 shrink-0 items-center rounded-xl border border-accent-300 px-3 text-xs font-medium text-accent-700">길찾기 ↗</a>
+              <a href={kakaoMapUrl(current.place)} target="_blank" rel="noopener noreferrer" className="flex min-h-9 shrink-0 items-center rounded-xl border border-accent-300 px-3 text-xs font-medium text-accent-700">길찾기 ↗</a>
             )}
             <button type="button" onClick={() => quickDone(current.id)} aria-label="지금 장소 완료" className="min-h-9 shrink-0 rounded-xl bg-accent-400 px-3 text-xs font-medium text-white">완료 ✓</button>
           </div>

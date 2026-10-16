@@ -799,3 +799,80 @@ describe("추가·순서 바꾸기 (맨 아래로 붙지 않게)", () => {
     expect(h.editDay).not.toHaveBeenCalled();
   });
 });
+
+describe("지도 크게 보기 / 내 위치", () => {
+  const mapProps = () => h.mapProps.current as { fullscreen?: boolean; myPos?: [number, number] | null };
+
+  it("크게 보기를 누르면 전체 화면 지도가 되고, 선택한 장소 카드·이전/다음·카카오맵 링크가 나온다", () => {
+    renderView();
+    expect(mapProps().fullscreen).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "지도 크게 보기" }));
+    expect(mapProps().fullscreen).toBe(true);
+    const full = screen.getByRole("region", { name: "지도 크게 보기" });
+    const sheet = within(full).getByTestId("map-sheet");
+    expect(sheet.textContent).toContain("1. 한옥마을 인근 주차");
+    expect(within(sheet).getByRole("link", { name: /카카오맵 길찾기/ }).getAttribute("href")).toContain("https://map.kakao.com/link/to/");
+    // 다음 장소로 넘기면 지도 선택이 따라간다
+    fireEvent.click(within(sheet).getByRole("button", { name: "다음 장소" }));
+    expect(h.mapProps.current!.selectedId).toBe("d1-lunch");
+    expect(sheet.textContent).toContain("2. 전주비빔밥 점심");
+    fireEvent.click(within(sheet).getByRole("button", { name: "이전 장소" }));
+    expect(h.mapProps.current!.selectedId).toBe("d1-parking");
+  });
+
+  it("크게 보기에서 완료를 누르면 진행 기록이 저장되고, 닫기로 돌아온다", async () => {
+    renderView();
+    fireEvent.click(screen.getByRole("button", { name: "지도 크게 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "이 장소 완료" }));
+    await waitFor(() => expect(h.updateProgress).toHaveBeenCalledWith("trip-1", "d1-parking", { status: "done" }));
+    fireEvent.click(screen.getByRole("button", { name: "지도 크게 보기 닫기" }));
+    expect(mapProps().fullscreen).toBe(false);
+    expect(screen.queryByRole("region", { name: "지도 크게 보기" })).toBeNull();
+  });
+
+  it("Esc로도 크게 보기를 닫는다", () => {
+    renderView();
+    fireEvent.click(screen.getByRole("button", { name: "지도 크게 보기" }));
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(mapProps().fullscreen).toBe(false);
+  });
+
+  it("내 위치: 켜면 지도에 내 점이 생기고 '지금 가야 할 곳'에 직선거리가 붙는다. 다시 누르면 꺼진다", () => {
+    const clearWatch = vi.fn();
+    let onOk: (p: { coords: { latitude: number; longitude: number } }) => void = () => {};
+    Object.defineProperty(navigator, "geolocation", {
+      configurable: true,
+      value: { watchPosition: vi.fn((ok) => { onOk = ok; return 7; }), clearWatch },
+    });
+    renderView();
+    fireEvent.click(screen.getByRole("button", { name: "📍 내 위치" }));
+    expect(screen.getByRole("status").textContent).toContain("찾는 중");
+    // 주차 장소(35.8143,127.1531)에서 위도 0.001도(약 110m) 떨어진 곳
+    act(() => onOk({ coords: { latitude: 35.8133, longitude: 127.1531 } }));
+    expect(mapProps().myPos).toEqual([35.8133, 127.1531]);
+    expect(screen.getByTestId("now-bar").textContent).toMatch(/내 위치에서 약 1[01]0m/);
+    fireEvent.click(screen.getByRole("button", { name: "📍 내 위치" }));
+    expect(clearWatch).toHaveBeenCalledWith(7);
+    expect(mapProps().myPos).toBeNull();
+  });
+
+  it("내 위치를 가져오지 못하면 이유를 알려주고 꺼진 상태로 돌아간다", () => {
+    let onErr: () => void = () => {};
+    Object.defineProperty(navigator, "geolocation", {
+      configurable: true,
+      value: { watchPosition: vi.fn((_ok, err) => { onErr = err; return 3; }), clearWatch: vi.fn() },
+    });
+    renderView();
+    fireEvent.click(screen.getByRole("button", { name: "📍 내 위치" }));
+    act(() => onErr());
+    expect(screen.getByRole("status").textContent).toContain("위치 권한");
+    expect(mapProps().myPos).toBeNull();
+  });
+
+  it("장소 상세에 카카오맵·네이버지도 링크가 있다", () => {
+    renderView();
+    const detail = within(stop("d1-parking")).getByRole("region", { name: /한옥마을 인근 주차 상세/ });
+    expect(within(detail).getByRole("link", { name: /카카오맵 길찾기/ }).getAttribute("href")).toContain("map.kakao.com");
+    expect(within(detail).getByRole("link", { name: /네이버지도/ }).getAttribute("href")).toContain("map.naver.com");
+  });
+});

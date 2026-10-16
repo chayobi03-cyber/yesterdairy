@@ -274,6 +274,23 @@ test("family trip: map + ordered stops on one page, instant edits, shared with f
     await expect(page.getByText("저장 중…")).toHaveCount(0, { timeout: 45_000 });
   });
 
+  await step("map full screen: big map with a bottom card, next/previous stop, close", TRIP_URL, async () => {
+    await page.getByRole("button", { name: "지도 크게 보기" }).click();
+    const full = page.getByRole("region", { name: "지도 크게 보기" });
+    await expect(full).toBeVisible();
+    await expect(full.getByTestId("map-sheet")).toBeVisible();
+    // 작은 지도(160px)보다 훨씬 커진다
+    const box = await full.getByRole("region", { name: "여행 지도" }).boundingBox();
+    expect(box!.height).toBeGreaterThan(300);
+    await expect(full.getByRole("link", { name: /카카오맵 길찾기/ })).toHaveAttribute("href", /map\.kakao\.com\/link\//);
+    const before = await full.getByTestId("map-sheet").innerText();
+    await full.getByRole("button", { name: "다음 장소" }).click();
+    await expect.poll(() => full.getByTestId("map-sheet").innerText()).not.toBe(before);
+    await full.getByRole("button", { name: "지도 크게 보기 닫기" }).click();
+    await expect(full).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "지도와 지금 장소" })).toBeVisible();
+  });
+
   await step("phone width: no horizontal overflow", TRIP_URL, async () => {
     await page.setViewportSize({ width: 390, height: 844 });
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
